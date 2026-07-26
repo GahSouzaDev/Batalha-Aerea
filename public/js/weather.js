@@ -1,7 +1,7 @@
 // ================================================================
 //  weather.js — CLIMA DINÂMICO
-//  A cada poucos minutos, um evento é sorteado dentre os permitidos
-//  pro mapa atual (ver MAP_WEATHER_PROFILES em map-cidade.js):
+//  A cada evento, um tipo é sorteado dentre os permitidos pro mapa
+//  atual (ver MAP_WEATHER_PROFILES em map-cidade.js):
 //    🌧️ chuva        (cidade, floresta)
 //    🌫️ neblina       (cidade, floresta)
 //    🏜️ tempestade de areia (deserto)
@@ -14,31 +14,48 @@
 //  longo de vários segundos) — dá pra ver a chuva/tempestade chegando
 //  de longe antes dela cobrir a tela.
 //
-//  MULTIPLAYER: não existe estado de servidor pra clima (isso exigiria
-//  mexer no backend, que não faz parte destes arquivos). Em vez disso
-//  cada cliente roda a MESMA sequência de eventos de forma determinística
-//  — a semente do sorteio é derivada do ID da sala (onlineState.roomId),
-//  então todo mundo na mesma sala sorteia os mesmos eventos, na mesma
-//  ordem. Pequenas variações de timing entre clientes (poucos segundos)
-//  podem acontecer, mas a experiência visual fica igual pra todos.
+//  TIMING (modo solo/bots):
+//   • Clima: 35s depois do início da partida, o 1º evento chega (com
+//     aviso). Fica ativo por 35s. Some, fica limpo por 35s, e entra
+//     outro clima — sempre sorteado (pode repetir o mesmo tipo).
+//   • Dirigível: aparece 60s depois do início. Se for abatido, o
+//     próximo demora a METADE do tempo anterior (60 -> 30 -> 15 -> ...,
+//     com piso de 5s só por segurança). Se ele escapar sem ser
+//     abatido, o intervalo volta ao padrão de 60s.
+//
+//  MULTIPLAYER: agora o clima é AUTORIDADE DO SERVIDOR (ver server.js —
+//  room.weather). O servidor roda a mesma máquina de estados e manda
+//  eventos ('weather-phase', 'blimp-phase', 'blimp-exploded') pra sala
+//  inteira, então todo mundo vê a MESMA chuva/neblina/tempestade e o
+//  MESMO dirigível, no mesmo lugar, ao mesmo tempo — sem depender de
+//  RNG "combinado" entre clientes. Este arquivo só INTERPOLA
+//  visualmente (fog/partículas/posição do dirigível) com base no que o
+//  servidor mandou; quem decide QUANDO e O QUÊ é sempre o servidor.
+//
+//  SALA LIVRE ("modo livre"): usa o MESMO sistema de servidor acima,
+//  só que com durações bem mais longas (clima ativo por 120s, limpo
+//  por 240s — ver FREE_ATMO_* em server.js) e persistente: o clima
+//  nunca "reseta" quando alguém entra ou sai, então quem entra pode já
+//  cair chovendo, exatamente como quem já estava lá está vendo.
 //
 //  DIRIGÍVEL: os "nós de colisão" dele são espalhados ao longo do
 //  corpo inteiro e plugados direto em window.__destructibles — o
 //  mesmo array que balas de metralhadora, mísseis, bombas e o laser JÁ
 //  verificam (ver weapons.js/abilities.js). Ou seja: qualquer arma que
 //  já existe no jogo acerta o dirigível sem precisar mexer nesses
-//  arquivos. Quando ele "morre" (qualquer nó marcado alive=false),
-//  weather.js detecta isso no próprio update() e dispara a explosão
-//  grande com dano em área (reaproveitando resolveBombDamage, de
-//  weapons.js — o mesmo sistema usado pelas bombas normais, que já
-//  cuida de acertar bots, jogadores remotos e você mesmo, e já avisa
-//  os outros clientes da sala pra verem a explosão também).
+//  arquivos — incluindo bombas, que dão o dano grande de área
+//  (BLIMP_EXPLOSION_DAMAGE) igual uma habilidade forte. Cada cliente só
+//  detecta localmente os acertos das SUAS PRÓPRIAS armas (do jeito que
+//  o resto do jogo já funciona); quem dá o tiro que mata avisa o
+//  servidor (evento 'blimp-killed'), e o servidor manda a explosão pra
+//  sala inteira ver.
 // ================================================================
 
 const weatherGroup = new THREE.Group();
 scene.add(weatherGroup);
 
 let weatherMapMode = null;
+let weatherOnline = false; // true = sala multiplayer (servidor manda o clima)
 let weatherRng = Math.random;
 let weatherBaseFog = { color: 0x87CEEB, near: 100, far: 700 };
 let weatherBaseSky = 0x87CEEB;
@@ -46,27 +63,40 @@ let weatherOverlayEl = null;
 
 // PEDIDO: pausar o clima/dirigível junto com o resto do jogo (pausa ou
 // menu principal) — ver setWeatherPaused()/main.js. Enquanto pausado,
-// updateWeather() nem sequer mexe nos timers, então tudo fica
+// updateWeather() nem sequer mexe nos timers locais, então tudo fica
 // congelado exatamente onde estava (nada de "correr por baixo dos
-// panos" enquanto o jogo tá parado).
+// panos" enquanto o jogo tá parado). Em modo online o servidor continua
+// rodando (é autoridade da sala, não do seu cliente sozinho) — pausar
+// só congela a INTERPOLAÇÃO visual local, então ao despausar você
+// simplesmente retoma no ponto em que o servidor já está.
 let weatherPaused = false;
 
-// ---- clima atmosférico (chuva / neblina / tempestade) ----
-// PEDIDO: intervalo entre eventos aleatório, mín. 40s / máx. 1min30 (90s).
-const ATMO_MIN_GAP = 40, ATMO_MAX_GAP = 90;
-const ATMO_WARNING_LEAD = 8;
-const ATMO_TRANSITION_IN = 8;
-// PEDIDO: evento dura bem menos que antes (era 45–85s).
-const ATMO_ACTIVE_MIN = 18, ATMO_ACTIVE_MAX = 35;
-const ATMO_TRANSITION_OUT = 8;
+// ---- clima atmosférico (chuva / neblina / tempestade) — modo SOLO ----
+// PEDIDO: ciclo fixo de 35s — contagem pro 1º evento, duração do clima
+// ativo, e intervalo até o próximo eventos são todos os mesmos 35s.
+// Aviso (8s) e transições de entrada/saída (8s) continuam como antes.
+const ATMO_GAP = 35;            // idle -> aviso (== intervalo entre eventos)
+const ATMO_WARNING_LEAD = 8;    // aviso -> entrando
+const ATMO_TRANSITION_IN = 8;   // entrando -> ativo
+const ATMO_ACTIVE = 35;         // duração do clima ativo
+const ATMO_TRANSITION_OUT = 8;  // saindo -> idle
 
 const atmo = { type: null, phase: 'idle', timer: 0, intensity: 0, lastType: null };
 
+// ---- clima atmosférico — modo ONLINE (espelha o que o servidor manda) ----
+// phaseStart é um timestamp local (performance.now()/1000); a partir
+// dele + duration a gente calcula o progresso (t) da fase sem precisar
+// que o servidor mande frame a frame.
+const netAtmo = { type: null, phase: 'idle', phaseStart: 0, duration: 0 };
+
 // ---- dirigível ----
-// PEDIDO: tava aparecendo dirigível demais — dobramos o teto (era até
-// 180s) pra sair pela metade da frequência, mantendo o mesmo espírito
-// (aleatório cheio, sem mínimo, só um teto pra poder aparecer).
-const BLIMP_MIN_GAP = 0, BLIMP_MAX_GAP = 360;
+// PEDIDO: 1º dirigível aparece 60s depois do início. Se for abatido, o
+// próximo demora a METADE do tempo anterior (60 -> 30 -> 15 -> ...),
+// com piso de 5s (só por segurança/performance, pra nunca virar spam
+// instantâneo). Se ele escapar sem ser abatido, o intervalo volta ao
+// padrão de 60s — só acelera quem realmente está abatendo o dirigível.
+const BLIMP_BASE_GAP = 60;
+const BLIMP_MIN_GAP_FLOOR = 5;
 const BLIMP_WARNING_LEAD = 8;
 const BLIMP_SPEED = 16;
 const BLIMP_ALTITUDE_MIN = 65, BLIMP_ALTITUDE_MAX = 95;
@@ -77,13 +107,17 @@ const BLIMP_EXPLOSION_DAMAGE = 90;
 const BLIMP_HIT_NODES = 5;
 
 const blimp = {
-  phase: 'idle', timer: 0,
+  phase: 'idle', timer: BLIMP_BASE_GAP, gap: BLIMP_BASE_GAP,
   group: null, nodes: [], shared: null,
   dir: new THREE.Vector3(), speed: 0, traveled: 0, totalDist: 0,
 };
 
+// ---- dirigível — modo ONLINE (espelha o servidor) ----
+const netBlimp = { phase: 'idle', phaseStart: 0, duration: 0, spawn: null };
+
 // ================================================================
-//  RNG determinístico (mesma sala => mesma sequência de clima)
+//  RNG determinístico (só usado no modo SOLO — em modo online quem
+//  decide o clima é sempre o servidor, não precisa de RNG combinado)
 // ================================================================
 function _hashString(str) {
   let h = 0;
@@ -359,13 +393,12 @@ function _announceAtmoClearing(type) {
 }
 
 // ================================================================
-//  MÁQUINA DE ESTADOS — CLIMA ATMOSFÉRICO
+//  MÁQUINA DE ESTADOS — CLIMA ATMOSFÉRICO (MODO SOLO)
 // ================================================================
-// PEDIDO: evitar repetir o mesmo tipo de clima duas vezes seguidas (ex:
-// sempre cair "neblina" por azar do sorteio). Se o mapa só tiver uma
-// opção só (ou o sorteio "trava" nela por falta de alternativa), caímos
-// de volta pra lista original — não trava o jogo esperando um tipo que
-// não existe.
+// PEDIDO: evitar repetir o mesmo tipo de clima duas vezes seguidas por
+// AZAR de sorteio consecutivo "travado" — mas se o mapa só tiver uma
+// opção só, caímos de volta pra lista original (repetir é permitido e
+// esperado — "pode ser que entre chuva, depois entre chuva de novo").
 function _pickAtmoType(options, exclude) {
   let pool = options;
   if (exclude && options.length > 1) {
@@ -401,8 +434,8 @@ function _updateAtmospheric(dt, profile) {
     if (atmo.timer <= 0) {
       atmo.intensity = 1; _applyAtmoIntensity(atmo.type, 1);
       atmo.phase = 'ativo';
-      atmo.timer = ATMO_ACTIVE_MIN + weatherRng() * (ATMO_ACTIVE_MAX - ATMO_ACTIVE_MIN);
-      _wlog(atmo.type + ' ATIVO por ~' + atmo.timer.toFixed(0) + 's');
+      atmo.timer = ATMO_ACTIVE;
+      _wlog(atmo.type + ' ATIVO por ' + ATMO_ACTIVE + 's');
     }
   } else if (atmo.phase === 'ativo') {
     if (atmo.timer <= 0) {
@@ -415,9 +448,9 @@ function _updateAtmospheric(dt, profile) {
     _applyAtmoIntensity(atmo.type, atmo.intensity);
     if (atmo.timer <= 0) {
       _hideAllAtmoEffects();
-      _wlog(atmo.type + ' terminou. Próximo evento em ~' + (ATMO_MIN_GAP + (ATMO_MAX_GAP - ATMO_MIN_GAP) / 2).toFixed(0) + 's (médio)');
+      _wlog(atmo.type + ' terminou. Próximo evento em ' + ATMO_GAP + 's.');
       atmo.type = null; atmo.phase = 'idle';
-      atmo.timer = ATMO_MIN_GAP + weatherRng() * (ATMO_MAX_GAP - ATMO_MIN_GAP);
+      atmo.timer = ATMO_GAP;
     }
   }
 
@@ -429,18 +462,65 @@ function _updateAtmospheric(dt, profile) {
 }
 
 // ================================================================
-//  DIRIGÍVEL
+//  MÁQUINA DE ESTADOS — CLIMA ATMOSFÉRICO (MODO ONLINE)
+//  Aqui a gente NÃO decide fases — só espelha o que netAtmo recebeu do
+//  servidor (via 'weather-phase') e interpola visualmente com base no
+//  tempo decorrido desde a última fase recebida.
 // ================================================================
-function _spawnBlimp() {
-  const angle = weatherRng() * Math.PI * 2;
-  const start = new THREE.Vector3(
-    Math.cos(angle) * BLIMP_SPAWN_RADIUS,
-    BLIMP_ALTITUDE_MIN + weatherRng() * (BLIMP_ALTITUDE_MAX - BLIMP_ALTITUDE_MIN),
-    Math.sin(angle) * BLIMP_SPAWN_RADIUS
-  );
-  const end = start.clone().multiplyScalar(-1);
-  end.y = start.y;
-  const dir = end.clone().sub(start).normalize();
+function _updateAtmosphericOnline(dt, profile) {
+  const options = profile.filter(k => k === 'chuva' || k === 'neblina' || k === 'tempestade');
+  if (!options.length || !netAtmo.type || netAtmo.phase === 'idle') {
+    if (atmo.phase !== 'idle') { atmo.phase = 'idle'; atmo.type = null; atmo.intensity = 0; _hideAllAtmoEffects(); }
+    return;
+  }
+
+  atmo.type = netAtmo.type;
+  atmo.phase = netAtmo.phase;
+
+  const elapsed = Math.max(0, performance.now() / 1000 - netAtmo.phaseStart);
+  const dur = netAtmo.duration > 0 ? netAtmo.duration : 0.0001;
+  let t;
+  if (netAtmo.phase === 'entrando') t = Math.min(1, elapsed / dur);
+  else if (netAtmo.phase === 'ativo') t = 1;
+  else if (netAtmo.phase === 'saindo') t = Math.max(0, 1 - elapsed / dur);
+  else t = 0; // 'aviso' — ainda não deve aparecer nada visualmente
+
+  atmo.intensity = t;
+  if (t > 0) _applyAtmoIntensity(atmo.type, t);
+  else _hideAllAtmoEffects();
+
+  if (rainPoints.visible) _updateRainParticles(dt);
+  if (sandPoints.visible) _updateSandParticles(dt);
+  if (fogPoints.visible) _updateFogParticles(dt);
+}
+
+// ================================================================
+//  DIRIGÍVEL — construção visual (compartilhada entre solo e online)
+// ================================================================
+// spawnData (opcional): { start:{x,y,z}, dir:{x,y,z}, speed, totalDist }
+// Se não vier, gera localmente com weatherRng (modo SOLO). Se vier
+// (modo ONLINE), usa exatamente o que o servidor mandou, pra todo
+// mundo ver o dirigível no mesmo lugar.
+function _spawnBlimp(spawnData) {
+  let start, dir, speed, totalDist;
+  if (spawnData) {
+    start = new THREE.Vector3(spawnData.start.x, spawnData.start.y, spawnData.start.z);
+    dir = new THREE.Vector3(spawnData.dir.x, spawnData.dir.y, spawnData.dir.z);
+    speed = spawnData.speed || BLIMP_SPEED;
+    totalDist = spawnData.totalDist;
+  } else {
+    const angle = weatherRng() * Math.PI * 2;
+    start = new THREE.Vector3(
+      Math.cos(angle) * BLIMP_SPAWN_RADIUS,
+      BLIMP_ALTITUDE_MIN + weatherRng() * (BLIMP_ALTITUDE_MAX - BLIMP_ALTITUDE_MIN),
+      Math.sin(angle) * BLIMP_SPAWN_RADIUS
+    );
+    const end = start.clone().multiplyScalar(-1);
+    end.y = start.y;
+    dir = end.clone().sub(start).normalize();
+    speed = BLIMP_SPEED;
+    totalDist = start.distanceTo(end);
+  }
 
   const group = new THREE.Group();
   group.position.copy(start);
@@ -496,15 +576,16 @@ function _spawnBlimp() {
   blimp.nodes = nodes;
   blimp.shared = shared;
   blimp.dir = dir;
-  blimp.speed = BLIMP_SPEED;
+  blimp.speed = speed;
   blimp.traveled = 0;
-  blimp.totalDist = start.distanceTo(end);
-
-  voiceAnnounce('Dirigível avistado! Atire nele: a explosão dá dano em todos por perto!', false);
-  showTemporaryMessage('🛩️ Dirigível sobrevoando o mapa — atirar nele causa dano em área!', 4000);
+  blimp.totalDist = totalDist;
+  blimp.phase = 'voando';
 }
 
-function _despawnBlimp() {
+// Some com a malha/colliders do dirigível (sem decidir nada sobre o
+// PRÓXIMO ciclo — isso é responsabilidade de quem chama, ver
+// _finishBlimpCycleSolo() e os handlers de socket mais abaixo).
+function _despawnBlimpVisual() {
   if (blimp.group) {
     blimp.group.traverse(o => {
       if (o.geometry) o.geometry.dispose();
@@ -518,19 +599,20 @@ function _despawnBlimp() {
   blimp.group = null;
   blimp.nodes = [];
   blimp.shared = null;
-  blimp.phase = 'idle';
-  blimp.timer = BLIMP_MIN_GAP + weatherRng() * (BLIMP_MAX_GAP - BLIMP_MIN_GAP);
 }
 
+// ================================================================
+//  DIRIGÍVEL — explosão (dano real, só quem acertou o tiro final)
+// ================================================================
 function _explodeBlimp() {
+  if (!blimp.group) return;
   const pos = blimp.group.position.clone();
   createExplosion(pos, true, true, 0xffaa33, BLIMP_EXPLOSION_RADIUS * 1.4);
-  // NOTA MULTIPLAYER: se dois jogadores acertarem o dirigível quase ao
-  // mesmo tempo em telas diferentes, cada cliente detecta a "morte"
-  // localmente e chama resolveBombDamage() uma vez — em teoria dá pra
-  // acontecer uma explosão duplicada nesse caso raríssimo. Resolver
-  // isso de vez exigiria o servidor ser dono do estado do dirigível,
-  // fora do escopo do que dá pra fazer só no cliente.
+  // NOTA MULTIPLAYER: cada cliente só detecta localmente os acertos das
+  // SUAS PRÓPRIAS armas (igual ao resto do jogo) — então só quem deu o
+  // tiro final chega até aqui. resolveBombDamage já cuida de acertar
+  // bots, jogadores remotos e você mesmo, e já avisa os outros clientes
+  // da sala pra verem a explosão (via 'hit'/'bomb-exploded').
   if (typeof resolveBombDamage === 'function') {
     resolveBombDamage(pos, false, BLIMP_EXPLOSION_DAMAGE, BLIMP_EXPLOSION_RADIUS, 'blimp');
   }
@@ -538,7 +620,44 @@ function _explodeBlimp() {
   if (typeof playSound === 'function') playSound('explosion');
   voiceAnnounce('Dirigível abatido!', false);
   showTemporaryMessage('💥 Dirigível abatido!', 3500);
-  _despawnBlimp();
+
+  _despawnBlimpVisual();
+
+  if (weatherOnline) {
+    // Quem entrega o tiro final avisa o servidor — ele decide o próximo
+    // ciclo (metade do tempo) e replica a explosão pro resto da sala.
+    if (typeof onlineState !== 'undefined' && onlineState.socket) {
+      onlineState.socket.emit('blimp-killed', { position: { x: pos.x, y: pos.y, z: pos.z } });
+    }
+    blimp.phase = 'idle';
+  } else {
+    _finishBlimpCycleSolo(true);
+  }
+}
+
+// Explosão "ecoada" — outro jogador da sala abateu o dirigível. Só
+// mostra o efeito visual (o dano de área já foi resolvido uma única
+// vez, no cliente de quem realmente acertou o tiro).
+function _explodeBlimpRemote(position) {
+  const pos = position ? new THREE.Vector3(position.x, position.y, position.z)
+    : (blimp.group ? blimp.group.position.clone() : null);
+  if (pos) createExplosion(pos, true, true, 0xffaa33, BLIMP_EXPLOSION_RADIUS * 1.4);
+  if (typeof cameraShake === 'function') cameraShake(0.6, 0.5);
+  if (typeof playSound === 'function') playSound('explosion');
+  voiceAnnounce('Dirigível abatido!', true);
+  showTemporaryMessage('💥 Dirigível abatido!', 3500);
+  _despawnBlimpVisual();
+  blimp.phase = 'idle';
+}
+
+// ================================================================
+//  DIRIGÍVEL — máquina de estados (MODO SOLO)
+// ================================================================
+function _finishBlimpCycleSolo(wasKilled) {
+  blimp.gap = wasKilled ? Math.max(BLIMP_MIN_GAP_FLOOR, blimp.gap / 2) : BLIMP_BASE_GAP;
+  blimp.phase = 'idle';
+  blimp.timer = blimp.gap;
+  _wlog('dirigível: próximo em ' + blimp.gap.toFixed(1) + 's' + (wasKilled ? ' (abatido — metade do tempo)' : ' (escapou — volta ao padrão)'));
 }
 
 function _updateBlimp(dt) {
@@ -554,19 +673,126 @@ function _updateBlimp(dt) {
     return;
   }
   if (blimp.phase === 'aviso') {
-    if (blimp.timer <= 0) { _spawnBlimp(); blimp.phase = 'voando'; _wlog('dirigível: voando'); }
+    if (blimp.timer <= 0) {
+      _spawnBlimp();
+      voiceAnnounce('Dirigível avistado! Atire nele: a explosão dá dano em todos por perto!', false);
+      showTemporaryMessage('🛩️ Dirigível sobrevoando o mapa — atirar nele causa dano em área!', 4000);
+      _wlog('dirigível: voando');
+    }
     return;
   }
   if (blimp.phase === 'voando') {
-    if (!blimp.group) { _despawnBlimp(); return; }
+    if (!blimp.group) { _finishBlimpCycleSolo(false); return; }
     blimp.nodes.forEach(n => n.posHolder.copy(blimp.group.position).addScaledVector(blimp.dir, n.localOffset));
     if (!blimp.shared.alive) { _explodeBlimp(); return; }
     blimp.group.position.addScaledVector(blimp.dir, blimp.speed * dt);
     blimp.traveled += blimp.speed * dt;
     blimp.group.rotation.z = Math.sin(performance.now() * 0.0004) * 0.02;
-    if (blimp.traveled >= blimp.totalDist + 40) _despawnBlimp();
+    if (blimp.traveled >= blimp.totalDist + 40) {
+      _despawnBlimpVisual();
+      _finishBlimpCycleSolo(false);
+    }
   }
 }
+
+// ================================================================
+//  DIRIGÍVEL — movimento (MODO ONLINE)
+//  As FASES (idle/aviso/voando) chegam via socket (ver
+//  _bindWeatherSocketEvents). Aqui só aplicamos o movimento frame a
+//  frame (mesma física de sempre) e detectamos localmente se FOMOS NÓS
+//  quem acabou de abater o dirigível.
+// ================================================================
+function _updateBlimpOnline(dt) {
+  if (netBlimp.phase !== 'voando' || !blimp.group) return;
+  blimp.nodes.forEach(n => n.posHolder.copy(blimp.group.position).addScaledVector(blimp.dir, n.localOffset));
+  if (blimp.shared && !blimp.shared.alive) { _explodeBlimp(); return; }
+  blimp.group.position.addScaledVector(blimp.dir, blimp.speed * dt);
+  blimp.group.rotation.z = Math.sin(performance.now() * 0.0004) * 0.02;
+}
+
+// ================================================================
+//  SOCKET — eventos do servidor (só em modo ONLINE)
+// ================================================================
+function _bindWeatherSocketEvents(socket) {
+  if (!socket || socket.__weatherBound) return;
+  socket.__weatherBound = true;
+
+  socket.on('weather-phase', (d) => {
+    netAtmo.type = d.type || null;
+    netAtmo.phase = d.phase;
+    netAtmo.duration = d.duration || 0;
+    netAtmo.phaseStart = performance.now() / 1000;
+    if (d.phase === 'aviso' && d.type) _announceAtmoIncoming(d.type);
+    if (d.phase === 'saindo' && d.type) _announceAtmoClearing(d.type);
+    _wlog('[servidor] clima: ' + d.phase + (d.type ? ' (' + d.type + ')' : '') + ' por ~' + (d.duration || 0).toFixed(0) + 's');
+  });
+
+  socket.on('blimp-phase', (d) => {
+    netBlimp.phase = d.phase;
+    netBlimp.duration = d.duration || 0;
+    netBlimp.phaseStart = performance.now() / 1000;
+    if (d.phase === 'aviso') {
+      voiceAnnounce('Dirigível se aproximando.', false);
+      showTemporaryMessage('📡 Dirigível se aproximando! Atire nele: a explosão causa dano em área.', 3500);
+    } else if (d.phase === 'voando' && d.spawn) {
+      netBlimp.spawn = d.spawn;
+      _spawnBlimp(d.spawn);
+      voiceAnnounce('Dirigível avistado! Atire nele: a explosão dá dano em todos por perto!', false);
+      showTemporaryMessage('🛩️ Dirigível sobrevoando o mapa — atirar nele causa dano em área!', 4000);
+    } else if (d.phase === 'idle') {
+      if (blimp.group) _despawnBlimpVisual();
+      blimp.phase = 'idle';
+    }
+    _wlog('[servidor] dirigível: ' + d.phase);
+  });
+
+  socket.on('blimp-exploded', (d) => { _explodeBlimpRemote(d && d.position); });
+}
+
+// ================================================================
+//  ENTRADA TARDIA (SALA LIVRE / RECONEXÃO) — o servidor manda o estado
+//  atual completo (weatherSnapshot) junto do 'match-loading'/
+//  'free-room-enter'; usamos isso pra já nascer sincronizado, em vez
+//  de esperar o próximo evento (senão quem entra numa Sala Livre já
+//  chovendo só veria a chuva minutos depois, no próximo ciclo).
+// ================================================================
+function applyWeatherSnapshot(snap) {
+  if (!snap || !weatherOnline) return;
+  const now = performance.now() / 1000;
+
+  if (snap.atmo) {
+    netAtmo.type = snap.atmo.type || null;
+    netAtmo.phase = snap.atmo.phase || 'idle';
+    netAtmo.duration = snap.atmo.duration || 0;
+    const elapsedAlready = Math.max(0, (snap.atmo.duration || 0) - (snap.atmo.timer || 0));
+    netAtmo.phaseStart = now - elapsedAlready;
+  }
+
+  if (snap.blimp) {
+    netBlimp.phase = snap.blimp.phase || 'idle';
+    netBlimp.duration = snap.blimp.duration || 0;
+    const elapsedAlready = Math.max(0, (snap.blimp.duration || 0) - (snap.blimp.timer || 0));
+    netBlimp.phaseStart = now - elapsedAlready;
+    if (snap.blimp.phase === 'voando' && snap.blimp.spawn) {
+      netBlimp.spawn = snap.blimp.spawn;
+      _spawnBlimp(snap.blimp.spawn);
+      // já estava voando há um tempo — avança a posição pro ponto certo
+      blimp.group.position.addScaledVector(blimp.dir, blimp.speed * elapsedAlready);
+    }
+  }
+  _wlog('estado de clima recebido do servidor (entrada tardia).');
+}
+window.applyWeatherSnapshot = applyWeatherSnapshot;
+
+// ================================================================
+//  RADAR — exposto pra radar.js poder mostrar o dirigível como contato
+//  (ver collectRadarContacts() em radar.js).
+// ================================================================
+function getBlimpRadarContact() {
+  if (!blimp.group || blimp.phase !== 'voando') return null;
+  return { position: blimp.group.position };
+}
+window.getBlimpRadarContact = getBlimpRadarContact;
 
 // ================================================================
 //  API PÚBLICA — chamada por environment.js (resetWeather) e
@@ -578,41 +804,53 @@ function _updateBlimp(dt) {
 window.__weatherDebug = true;
 function _wlog(...args) { if (window.__weatherDebug) console.log('[CLIMA]', ...args); }
 
+function _isOnlineRoom() {
+  return typeof onlineState !== 'undefined' && !!onlineState.socket && !!onlineState.roomId;
+}
+
 function resetWeather(mode) {
   weatherMapMode = mode;
   weatherPaused = false;
   if (scene.fog) weatherBaseFog = { color: scene.fog.color.getHex(), near: scene.fog.near, far: scene.fog.far };
   if (scene.background && scene.background.isColor) weatherBaseSky = scene.background.getHex();
 
-  const seedSrc = (typeof onlineState !== 'undefined' && onlineState.roomId)
-    ? ('sala:' + onlineState.roomId)
-    : ('solo:' + Math.floor(Math.random() * 1e9));
-  weatherRng = _mulberry32(_hashString(seedSrc));
+  _hideAllAtmoEffects();
+  _despawnBlimpVisual();
+
+  weatherOnline = _isOnlineRoom();
 
   atmo.type = null; atmo.phase = 'idle'; atmo.intensity = 0; atmo.lastType = null;
-  // Intervalo já é curto o suficiente (40–90s) pra não precisar de
-  // nenhum hack de "primeiro evento mais rápido" — o próprio ciclo
-  // normal já dá sinal de vida rápido.
-  atmo.timer = ATMO_MIN_GAP + weatherRng() * (ATMO_MAX_GAP - ATMO_MIN_GAP);
-  _hideAllAtmoEffects();
+  blimp.phase = 'idle';
 
-  _despawnBlimp();
-  // Dirigível: aleatório cheio, só com teto de 3min pra poder aparecer
-  // (BLIMP_MIN_GAP=0). Pode sortear bem pertinho de 0 (aparece rápido)
-  // ou perto do teto (partida pode acabar antes — não aparece, de
-  // propósito).
-  blimp.timer = BLIMP_MIN_GAP + weatherRng() * (BLIMP_MAX_GAP - BLIMP_MIN_GAP);
-
-  _wlog('resetWeather(' + mode + ') — próximo evento atmosférico em ~' + atmo.timer.toFixed(0) + 's, dirigível em ~' + blimp.timer.toFixed(0) + 's (teto 180s, pode não aparecer)');
+  if (weatherOnline) {
+    // O SERVIDOR é quem manda em tudo daqui pra frente — o estado local
+    // só existe pra INTERPOLAR visualmente o que ele mandar. Se o
+    // jogador está entrando no meio de uma partida/Sala Livre já em
+    // andamento, applyWeatherSnapshot() (chamado por multiplayer.js)
+    // corrige o estado inicial logo em seguida.
+    netAtmo.type = null; netAtmo.phase = 'idle'; netAtmo.duration = 0; netAtmo.phaseStart = 0;
+    netBlimp.phase = 'idle'; netBlimp.duration = 0; netBlimp.phaseStart = 0; netBlimp.spawn = null;
+    _bindWeatherSocketEvents(onlineState.socket);
+    _wlog('resetWeather(' + mode + ') — modo ONLINE: clima e dirigível controlados pelo servidor.');
+  } else {
+    weatherRng = _mulberry32(_hashString('solo:' + Math.floor(Math.random() * 1e9)));
+    atmo.timer = ATMO_GAP;
+    blimp.gap = BLIMP_BASE_GAP;
+    blimp.timer = BLIMP_BASE_GAP;
+    _wlog('resetWeather(' + mode + ') — modo SOLO: 1º clima em ' + ATMO_GAP + 's, dirigível em ' + BLIMP_BASE_GAP + 's.');
+  }
 }
 
 // DEBUG: força um evento de clima na hora, sem esperar o timer, pra
-// testar rápido pelo console do navegador (F12):
-//   forceWeather('chuva')       forceWeather('neblina')
-//   forceWeather('tempestade')  forceWeather('dirigivel')
+// testar rápido pelo console do navegador (F12). Só funciona em modo
+// SOLO — em sala multiplayer quem manda é o servidor.
 function forceWeather(type) {
+  if (weatherOnline) {
+    console.warn('[CLIMA] em sala multiplayer o clima é controlado pelo servidor — forceWeather não tem efeito aqui.');
+    return;
+  }
   if (type === 'dirigivel') {
-    _despawnBlimp();
+    _despawnBlimpVisual();
     blimp.phase = 'idle';
     blimp.timer = 0;
     _wlog('forceWeather: dirigível forçado.');
@@ -630,11 +868,10 @@ function forceWeather(type) {
 }
 window.forceWeather = forceWeather;
 
-// PEDIDO: pausar o jogo (ou voltar pro menu) tem que congelar o clima e
-// o dirigível de verdade — nada de timer andando, nada de narrador
-// falando, nada de dirigível se movendo enquanto a tela de pausa/menu
-// está na frente. Chamado toda frame por main.js com o estado atual
-// (idempotente, então não tem problema chamar sempre).
+// PEDIDO: pausar o jogo (ou voltar pro menu) tem que congelar a
+// interpolação visual local. Em modo online o relógio do servidor
+// continua rodando (é autoridade da sala, não do seu cliente sozinho);
+// ao despausar, a gente só retoma exibindo o que ele já mandou.
 function setWeatherPaused(paused) {
   weatherPaused = !!paused;
 }
@@ -648,7 +885,7 @@ window.setWeatherPaused = setWeatherPaused;
 function haltWeatherForMenu() {
   atmo.phase = 'idle'; atmo.type = null; atmo.intensity = 0;
   _hideAllAtmoEffects();
-  if (blimp.group || blimp.phase !== 'idle') _despawnBlimp();
+  if (blimp.group || blimp.phase !== 'idle') { _despawnBlimpVisual(); blimp.phase = 'idle'; }
   if (typeof stopVoiceAnnouncer === 'function') stopVoiceAnnouncer();
   _wlog('clima/dirigível totalmente parados (voltou pro menu).');
 }
@@ -659,23 +896,35 @@ function updateWeather(dt) {
   if (!weatherMapMode || weatherPaused) return;
   const profile = (typeof MAP_WEATHER_PROFILES !== 'undefined' && MAP_WEATHER_PROFILES[weatherMapMode]) || [];
 
-  // DEBUG: um "pulso" a cada ~10s mostrando quanto falta pro próximo
-  // evento — assim dá pra confirmar que o sistema está rodando mesmo
-  // que nada tenha aparecido na tela ainda.
-  if (window.__weatherDebug) {
-    _weatherHeartbeat += dt;
-    if (_weatherHeartbeat >= 10) {
-      _weatherHeartbeat = 0;
-      _wlog('rodando — mapa=' + weatherMapMode + ' | fase atmo=' + atmo.phase + ' (faltam ' + Math.max(0, atmo.timer).toFixed(0) + 's) | fase dirigível=' + blimp.phase + ' (faltam ' + Math.max(0, blimp.timer).toFixed(0) + 's)');
+  if (weatherOnline) {
+    _updateAtmosphericOnline(dt, profile);
+    if (profile.includes('dirigivel')) {
+      _updateBlimpOnline(dt);
+    } else if (blimp.group) {
+      _despawnBlimpVisual();
+      blimp.phase = 'idle';
     }
-  }
+  } else {
+    // DEBUG: um "pulso" a cada ~10s mostrando quanto falta pro próximo
+    // evento — assim dá pra confirmar que o sistema está rodando mesmo
+    // que nada tenha aparecido na tela ainda.
+    if (window.__weatherDebug) {
+      _weatherHeartbeat += dt;
+      if (_weatherHeartbeat >= 10) {
+        _weatherHeartbeat = 0;
+        _wlog('rodando — mapa=' + weatherMapMode + ' | fase atmo=' + atmo.phase + ' (faltam ' + Math.max(0, atmo.timer).toFixed(0) + 's) | fase dirigível=' + blimp.phase + ' (faltam ' + Math.max(0, blimp.timer).toFixed(0) + 's)');
+      }
+    }
 
-  _updateAtmospheric(dt, profile);
+    _updateAtmospheric(dt, profile);
 
-  if (profile.includes('dirigivel')) {
-    _updateBlimp(dt);
-  } else if (blimp.phase !== 'idle' || blimp.group) {
-    _despawnBlimp();
+    if (profile.includes('dirigivel')) {
+      _updateBlimp(dt);
+    } else if (blimp.phase !== 'idle' || blimp.group) {
+      _despawnBlimpVisual();
+      blimp.phase = 'idle';
+      blimp.timer = blimp.gap;
+    }
   }
 
   _updateDigitalRain(dt);
