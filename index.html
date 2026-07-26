@@ -1,871 +1,1859 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Batalha Aérea — Multiplayer</title>
-<meta name="description" content="Batalha Aérea: comande poderosos aviões, participe de batalhas intensas multiplayer e domine os céus.">
-<link rel="icon" type="image/png" href="public/img/logo.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --navy: #011F44;
-    --gold: #F2B705;
-    --blue: #0583F2;
-    --green: #63BD01;
-    --purple: #50029A;
-    --panel-line: rgba(5, 131, 242, 0.22);
-    --text: #eaf2fb;
-    --text-dim: #9fb3cc;
-    --red: #ff5c5c;
-  }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batalha Aérea — Multiplayer</title>
+    <meta name="description" content="Batalha Aérea: comande poderosos aviões, participe de batalhas intensas multiplayer e domine os céus.">
+    <meta name="keywords" content="batalha aérea, jogo de avião, multiplayer, combate aéreo, navegador, Three.js, jogo online, aviões, simulação de voo">
+    <meta name="author" content="Emerson Gabriel Alves de Souza">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://www.gahsouza.com.br/batalha-aerea">
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Batalha Aérea — Multiplayer">
+    <meta property="og:description" content="Comande poderosos aviões, participe de batalhas intensas multiplayer e domine os céus.">
+    <meta property="og:image" content="public/img/outdor.png">
+    <meta property="og:url" content="https://www.gahsouza.com.br/batalha-aerea">
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Batalha Aérea — Multiplayer">
+    <meta property="twitter:description" content="Comande poderosos aviões, participe de batalhas intensas multiplayer e domine os céus.">
+    <meta property="twitter:image" content="public/img/outdor.png">
+    <link rel="icon" type="image/png" href="public/img/icone.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #011F44;
+            --gold: #F2B705;
+            --blue: #0583F2;
+            --green: #63BD01;
+            --purple: #50029A;
+            --panel-line: rgba(5, 131, 242, 0.3);
+            --text: #eaf2fb;
+            --text-dim: #b8c8dd;
+            --red: #ff5c5c;
+            --card-bg: rgba(1, 31, 68, 0.55);
+            --card-border: rgba(5, 131, 242, 0.25);
+            --glass: rgba(1, 31, 68, 0.45);
+        }
 
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background: var(--navy) url('public/img/fundo-site.png') no-repeat center top;
-    background-size: cover;
-    background-attachment: fixed;
-    color:var(--text);
-    font-family:'Rajdhani',sans-serif;
-    font-weight:500;
-    overflow-x:hidden;
-  }
-  h1,h2,h3,.brand-font{font-family:'Orbitron',sans-serif;}
-  a{color:inherit;text-decoration:none;}
-  img{max-width:100%;display:block;}
-  button{font-family:inherit;cursor:pointer;}
-  ::selection{background:var(--gold);color:#08131f;}
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            background: url('public/img/fundo-site.png') no-repeat center top;
+            background-size: cover;
+            background-attachment: scroll;
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 500;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        h1,
+        h2,
+        h3,
+        .brand-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+        img {
+            max-width: 100%;
+            display: block;
+        }
+        button {
+            font-family: inherit;
+            cursor: pointer;
+        }
+        ::selection {
+            background: var(--gold);
+            color: #08131f;
+        }
 
-  /* ---------- HEADER ---------- */
-  header{
-    position:sticky;
-    top:0;
-    z-index:500;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:14px 36px;
-    background:rgba(1, 31, 68, .6);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--panel-line);
-  }
-  .logo-wrap{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-  .logo-wrap img{height:52px;width:auto;}
-  nav.main-nav{display:flex;gap:56px;align-items:center;}
-  nav.main-nav a{
-    font-family:'Orbitron',sans-serif;
-    font-size:14px;font-weight:700;letter-spacing:1.5px;
-    color:var(--text-dim);padding:6px 2px;position:relative;
-    transition:color .2s ease;white-space:nowrap;background:none;border:none;
-  }
-  nav.main-nav a::after{
-    content:"";position:absolute;left:0;right:0;bottom:-8px;height:2px;
-    background:linear-gradient(90deg,var(--gold),#d19f00);
-    transform:scaleX(0);transform-origin:left;transition:transform .25s ease;
-  }
-  nav.main-nav a:hover,nav.main-nav a.active{color:var(--gold);}
-  nav.main-nav a.active::after,nav.main-nav a:hover::after{transform:scaleX(1);}
+        /* ---------- HEADER ---------- */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 36px;
+            background: rgba(1, 31, 68, .7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(5, 131, 242, .2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .logo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .logo-wrap img {
+            height: 52px;
+            width: auto;
+            filter: drop-shadow(0 0 12px rgba(5, 131, 242, 0.4));
+            transition: filter 0.3s;
+        }
+        .logo-wrap img:hover {
+            filter: drop-shadow(0 0 20px rgba(242, 183, 5, 0.6));
+        }
+        nav.main-nav {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+        }
+        nav.main-nav a {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            padding: 6px 2px;
+            position: relative;
+            transition: color .25s ease;
+            white-space: nowrap;
+            background: none;
+            border: none;
+        }
+        nav.main-nav a::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -8px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--gold), #d19f00);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform .3s ease;
+            border-radius: 2px;
+        }
+        nav.main-nav a:hover,
+        nav.main-nav a.active {
+            color: var(--gold);
+            text-shadow: 0 0 20px rgba(242, 183, 5, 0.5);
+        }
+        nav.main-nav a.active::after,
+        nav.main-nav a:hover::after {
+            transform: scaleX(1);
+        }
 
-  .header-right{display:flex;align-items:center;gap:14px;flex-shrink:0;}
-  .icon-btn{
-    width:40px;height:40px;display:flex;align-items:center;justify-content:center;
-    border-radius:10px;border:1px solid var(--panel-line);
-    background:rgba(1, 31, 68, .5);color:var(--text-dim);
-    transition:all .2s ease;position:relative;
-  }
-  .icon-btn:hover{color:var(--gold);border-color:var(--gold);background:rgba(242, 183, 5, .08);}
-  .icon-btn svg{width:20px;height:20px;}
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            border: 1px solid var(--panel-line);
+            background: rgba(1, 31, 68, .5);
+            color: var(--text-dim);
+            transition: all .25s ease;
+            position: relative;
+        }
+        .icon-btn:hover {
+            color: var(--gold);
+            border-color: var(--gold);
+            background: rgba(242, 183, 5, .12);
+            box-shadow: 0 0 20px rgba(242, 183, 5, 0.2);
+            transform: translateY(-2px);
+        }
+        .icon-btn svg {
+            width: 20px;
+            height: 20px;
+        }
 
-  .profile-menu{position:relative;}
-  .profile-dropdown{
-    position:absolute;top:52px;right:0;width:230px;
-    background:var(--navy);border:1px solid var(--panel-line);
-    border-radius:12px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.5);
-    display:none;flex-direction:column;gap:10px;
-  }
-  .profile-dropdown.open{display:flex;}
-  .profile-dropdown .soon-tag{
-    font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;color:var(--gold);
-    background:rgba(242, 183, 5, .1);border:1px solid rgba(242, 183, 5, .3);
-    padding:3px 8px;border-radius:20px;align-self:flex-start;
-  }
-  .profile-dropdown input{
-    width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--panel-line);
-    background:rgba(255,255,255,.03);color:var(--text-dim);font-family:'Rajdhani',sans-serif;
-  }
-  .profile-dropdown button.fake-login{
-    padding:9px;border-radius:8px;border:none;
-    background:linear-gradient(135deg,#0583F2, #011F44);
-    color:var(--text-dim);font-weight:700;
-    font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;
-    cursor:not-allowed;
-  }
+        .profile-menu {
+            position: relative;
+        }
+        .profile-dropdown {
+            position: absolute;
+            top: 52px;
+            right: 0;
+            width: 230px;
+            background: rgba(1, 31, 68, .85);
+            border: 1px solid var(--panel-line);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, .6);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .profile-dropdown.open {
+            display: flex;
+        }
+        .profile-dropdown .soon-tag {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            letter-spacing: 1px;
+            color: var(--gold);
+            background: rgba(242, 183, 5, .1);
+            border: 1px solid rgba(242, 183, 5, .3);
+            padding: 3px 8px;
+            border-radius: 20px;
+            align-self: flex-start;
+        }
+        .profile-dropdown input {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--panel-line);
+            background: rgba(255, 255, 255, .04);
+            color: var(--text-dim);
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .profile-dropdown button.fake-login {
+            padding: 9px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #0583F2, #011F44);
+            color: var(--text-dim);
+            font-weight: 700;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            letter-spacing: 1px;
+            cursor: not-allowed;
+        }
 
-  /* ================================================================
-     SISTEMA DE PÁGINAS (views)
-  ================================================================ */
-  .view{display:none;}
-  .view.active{display:block;}
+        /* ================================================================
+           SISTEMA DE PÁGINAS (views)
+        ================================================================ */
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+            animation: fadeSlideIn 0.4s ease;
+        }
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
-  /* ---------- PÁGINA INÍCIO ---------- */
-  .hero-content{
-    max-width:600px;
-    padding:8vw 4vw 4vw 4vw;
-  }
-  .hero-content h1{
-    margin:0 0 16px 0;
-    font-size:clamp(30px,4.4vw,52px);
-    line-height:1.05;
-    font-weight:900;
-    text-shadow:0 4px 18px rgba(0,0,0,.65);
-  }
-  .hero-content h1 .white-line{display:block;color:#f4f8fd;}
-  .hero-content h1 .gold-line{
-    display:block;
-    color:var(--gold);
-    -webkit-text-stroke:1px rgba(242, 183, 5, .4);
-    text-shadow:0 4px 24px rgba(242, 183, 5, .35);
-    font-size:clamp(42px,6.4vw,76px);
-  }
-  .hero-content p.subtitle{
-    max-width:440px;
-    font-size:17px;
-    color:#dbe6f3;
-    line-height:1.5;
-    margin:0 0 30px 0;
-    text-shadow:0 2px 10px rgba(0,0,0,.6);
-  }
-  .play-btn-link{display:inline-block;transition:transform .18s ease, filter .18s ease;}
-  .play-btn-link:hover{transform:translateY(-4px) scale(1.02);filter:drop-shadow(0 10px 26px rgba(242, 183, 5, .4));}
-  .play-btn-link img{
-    width:clamp(260px,32vw,440px);
-    height:auto;
-  }
-  .play-btn-fallback{
-    display:inline-flex;align-items:center;gap:14px;
-    padding:22px 46px;
-    font-family:'Orbitron',sans-serif;
-    font-weight:900;font-size:24px;letter-spacing:1px;
-    color:#f4f8fd;
-    background:linear-gradient(135deg, #63BD01, #448501);
-    border:3px solid #3d7600;
-    border-radius:18px;
-    box-shadow:0 8px 0 #2b5400, 0 18px 30px rgba(0,0,0,.4);
-  }
+        /* ---------- PÁGINA INÍCIO ---------- */
+        .hero-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            max-width: 600px;
+            padding: 5vw 4vw 2vw 4vw;
+        }
+        .hero-content {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .hero-content h1 {
+            margin: 0 0 12px 0;
+            font-size: clamp(30px, 4.4vw, 52px);
+            line-height: 1.05;
+            font-weight: 900;
+            text-shadow: 0 4px 18px rgba(0, 0, 0, .7);
+        }
+        .hero-content h1 .white-line {
+            display: block;
+            color: #f4f8fd;
+        }
+        .hero-content h1 .gold-line {
+            display: block;
+            color: var(--gold);
+            -webkit-text-stroke: 1px rgba(242, 183, 5, .4);
+            text-shadow: 0 4px 30px rgba(242, 183, 5, .5), 0 0 60px rgba(242, 183, 5, 0.25);
+            font-size: clamp(42px, 6.4vw, 76px);
+            animation: goldPulse 2.5s ease-in-out infinite;
+        }
+        @keyframes goldPulse {
+            0%,
+            100% {
+                text-shadow: 0 4px 30px rgba(242, 183, 5, .5), 0 0 60px rgba(242, 183, 5, 0.25);
+            }
+            50% {
+                text-shadow: 0 4px 45px rgba(242, 183, 5, .8), 0 0 90px rgba(242, 183, 5, 0.5);
+            }
+        }
+        .hero-content p.subtitle {
+            max-width: 440px;
+            font-size: 17px;
+            color: #dbe6f3;
+            line-height: 1.5;
+            margin: 0 0 18px 0;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, .7);
+        }
+        .play-btn-link {
+            display: inline-block;
+            transition: transform .2s ease, filter .2s ease;
+        }
+        .play-btn-link:hover {
+            transform: translateY(-5px) scale(1.03);
+            filter: drop-shadow(0 14px 30px rgba(242, 183, 5, .5));
+        }
+        .play-btn-link img {
+            width: clamp(260px, 32vw, 440px);
+            height: auto;
+        }
+        .play-btn-fallback {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            padding: 22px 46px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 24px;
+            letter-spacing: 1px;
+            color: #f4f8fd;
+            background: linear-gradient(135deg, #63BD01, #448501);
+            border: 3px solid #3d7600;
+            border-radius: 18px;
+            box-shadow: 0 8px 0 #2b5400, 0 18px 30px rgba(0, 0, 0, .5);
+        }
 
-  .server-status-line{
-    margin-top:24px;
-    display:inline-flex;
-    align-items:center;
-    gap:10px;
-    padding:9px 18px;
-    border-radius:30px;
-    background:rgba(1, 31, 68, .6);
-    border:1px solid var(--panel-line);
-    font-size:14px;
-    font-weight:600;
-    color:var(--text-dim);
-  }
-  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
-  .dot.online{background:var(--green);box-shadow:0 0 10px var(--green);}
-  .dot.offline{background:var(--red);box-shadow:0 0 10px var(--red);}
+        .server-status-line {
+            margin-top: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 22px;
+            border-radius: 30px;
+            background: rgba(1, 31, 68, .45);
+            backdrop-filter: blur(6px);
+            border: 1px solid var(--panel-line);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dim);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s;
+        }
+        .server-status-line:hover {
+            border-color: var(--gold);
+            box-shadow: 0 4px 25px rgba(242, 183, 5, 0.2);
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            animation: dotPulse 2s infinite;
+        }
+        .dot.online {
+            background: var(--green);
+            box-shadow: 0 0 14px var(--green);
+        }
+        .dot.offline {
+            background: var(--red);
+            box-shadow: 0 0 14px var(--red);
+        }
+        @keyframes dotPulse {
+            0%,
+            100% {
+                box-shadow: 0 0 8px currentColor;
+            }
+            50% {
+                box-shadow: 0 0 20px currentColor, 0 0 35px currentColor;
+            }
+        }
 
-  /* ---------- SECTIONS COMUNS ---------- */
-  section{
-    padding:56px 6vw;
-    position:relative;
-    background: var(--navy);
-    border-top: 1px solid var(--panel-line);
-  }
-  .page-header{
-    padding:100px 6vw 20px 6vw;
-    text-align:center;
-    background: transparent;
-  }
-  .page-header h1{font-size:clamp(26px,3.4vw,38px);color:var(--gold);margin:0 0 10px 0;text-shadow:0 4px 12px rgba(0,0,0,.8);}
-  .page-header p{color:var(--text-dim);font-size:15px;max-width:600px;margin:0 auto;text-shadow:0 2px 6px rgba(0,0,0,.8);}
+        /* ---------- SECTIONS COMUNS ---------- */
+        section {
+            padding: 56px 6vw;
+            position: relative;
+            background: transparent;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .page-header {
+            padding: 80px 6vw 20px 6vw;
+            text-align: center;
+            background: transparent;
+        }
+        .page-header h1 {
+            font-size: clamp(28px, 3.8vw, 42px);
+            color: var(--gold);
+            margin: 0 0 10px 0;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, .8), 0 0 40px rgba(242, 183, 5, 0.3);
+            letter-spacing: 2px;
+        }
+        .page-header p {
+            color: var(--text-dim);
+            font-size: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+        }
 
-  .section-title{display:flex;align-items:center;gap:18px;justify-content:center;margin-bottom:38px;}
-  .section-title::before,.section-title::after{
-    content:"";flex:1;max-width:120px;height:1px;
-    background:linear-gradient(90deg,transparent,var(--panel-line),transparent);
-  }
-  .section-title h2{font-size:22px;letter-spacing:2px;color:var(--gold);margin:0;white-space:nowrap;}
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            justify-content: center;
+            margin-bottom: 38px;
+        }
+        .section-title::before,
+        .section-title::after {
+            content: "";
+            flex: 1;
+            max-width: 120px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--panel-line), transparent);
+        }
+        .section-title h2 {
+            font-size: 22px;
+            letter-spacing: 2px;
+            color: var(--gold);
+            margin: 0;
+            white-space: nowrap;
+            text-shadow: 0 0 25px rgba(242, 183, 5, 0.4);
+        }
 
-  /* ---------- NOTÍCIAS ---------- */
-  .news-grid{
-    display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-    gap:24px;max-width:1180px;margin:0 auto;
-  }
-  .news-card{
-    background:rgba(1, 31, 68, .4);border:1px solid var(--panel-line);border-radius:16px;overflow:hidden;
-    display:flex;flex-direction:column;transition:transform .2s ease, box-shadow .2s ease;
-    backdrop-filter: blur(4px);
-  }
-  .news-card:hover{transform:translateY(-4px);box-shadow:0 16px 34px rgba(0,0,0,.4);}
-  .news-card .thumb{width:100%;height:170px;object-fit:cover;background:rgba(1, 31, 68, .8);}
-  .news-card .body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px;flex:1;}
-  .news-tag{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;color:var(--gold);}
-  .news-card h3{margin:0;font-size:18px;line-height:1.25;color:var(--text);}
-  .news-card p{margin:0;color:var(--text-dim);font-size:14.5px;line-height:1.4;flex:1;}
-  .news-footer{display:flex;align-items:center;justify-content:space-between;margin-top:6px;}
-  .news-date{font-size:12.5px;color:#6f89a8;}
-  .btn-ghost{
-    font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:1px;
-    padding:8px 14px;border-radius:9px;border:1px solid var(--panel-line);
-    background:rgba(5, 131, 242, .08);color:var(--blue);transition:all .2s ease;
-  }
-  .btn-ghost:hover{background:var(--blue);color:#04131f;border-color:var(--blue);}
+        /* ---------- NOTÍCIAS ---------- */
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .news-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform .3s ease, box-shadow .3s ease, border-color .3s;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            cursor: pointer;
+        }
+        .news-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, .7), 0 0 30px rgba(5, 131, 242, 0.15);
+            border-color: rgba(242, 183, 5, 0.4);
+        }
+        .news-card .thumb {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background: rgba(1, 31, 68, .8);
+            transition: transform 0.4s;
+        }
+        .news-card:hover .thumb {
+            transform: scale(1.04);
+        }
+        .news-card .body {
+            padding: 18px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+        }
+        .news-tag {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            letter-spacing: 1px;
+            color: var(--gold);
+            text-shadow: 0 0 12px rgba(242, 183, 5, 0.4);
+        }
+        .news-card h3 {
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.25;
+            color: #fff;
+        }
+        .news-card p {
+            margin: 0;
+            color: var(--text-dim);
+            font-size: 14.5px;
+            line-height: 1.4;
+            flex: 1;
+        }
+        .news-card h3,
+        .news-card p,
+        .news-card .news-tag,
+        .news-card .news-date {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+        .news-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 6px;
+        }
+        .news-date {
+            font-size: 12.5px;
+            color: #8aa0bb;
+        }
+        .btn-ghost {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            letter-spacing: 1px;
+            padding: 8px 14px;
+            border-radius: 9px;
+            border: 1px solid var(--panel-line);
+            background: rgba(5, 131, 242, .2);
+            color: var(--blue);
+            transition: all .25s ease;
+            backdrop-filter: blur(4px);
+            cursor: pointer;
+        }
+        .btn-ghost:hover {
+            background: var(--blue);
+            color: #fff;
+            border-color: var(--blue);
+            box-shadow: 0 0 20px rgba(5, 131, 242, 0.4);
+            transform: scale(1.04);
+        }
 
-  .news-list-full{display:flex;flex-direction:column;gap:14px;max-width:820px;margin:0 auto;}
-  .news-list-item{
-    display:flex;gap:16px;align-items:center;background:rgba(1, 31, 68, .8);
-    border:1px solid var(--panel-line);border-radius:14px;padding:14px;backdrop-filter: blur(2px);
-  }
-  .news-list-item img{width:96px;height:70px;object-fit:cover;border-radius:8px;flex-shrink:0;background:rgba(1, 31, 68, .8);}
-  .news-list-item .info{flex:1;min-width:0;}
-  .news-list-item h4{margin:0 0 3px 0;font-size:16px;color:var(--text);}
-  .news-list-item .news-tag{display:block;margin-bottom:2px;}
-  .news-list-item .news-date{display:block;margin-top:2px;}
+        .news-list-full {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-width: 820px;
+            margin: 0 auto;
+        }
+        .news-list-item {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .news-list-item:hover {
+            border-color: rgba(242, 183, 5, 0.4);
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+            transform: translateX(4px);
+        }
+        .news-list-item img {
+            width: 96px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+            background: rgba(1, 31, 68, .8);
+        }
+        .news-list-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+        .news-list-item h4 {
+            margin: 0 0 3px 0;
+            font-size: 16px;
+            color: #fff;
+        }
+        .news-list-item .news-tag {
+            display: block;
+            margin-bottom: 2px;
+        }
+        .news-list-item .news-date {
+            display: block;
+            margin-top: 2px;
+        }
+        .news-list-item .info h4,
+        .news-list-item .info .news-tag,
+        .news-list-item .info .news-date {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
 
-  /* ---------- MODAL DE NOTÍCIA ---------- */
-  .modal-overlay{
-    position:fixed;inset:0;z-index:900;background:rgba(3,8,16,.75);
-    backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:24px;
-  }
-  .modal-overlay.open{display:flex;}
-  .modal-box{
-    max-width:640px;width:100%;max-height:82vh;overflow-y:auto;
-    background:var(--navy);border:1px solid var(--panel-line);border-radius:18px;
-    padding:0 0 28px 0;box-shadow:0 30px 70px rgba(0,0,0,.6);
-  }
-  .modal-box img{width:100%;height:200px;object-fit:cover;border-radius:18px 18px 0 0;}
-  .modal-inner{padding:24px 28px 0 28px;}
-  .modal-close{
-    position:sticky;top:12px;float:right;margin:12px 12px 0 0;
-    width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:18px;
-    display:flex;align-items:center;justify-content:center;
-  }
-  .modal-box h3{margin:0 0 6px 0;font-size:24px;color:var(--gold);font-family:'Orbitron',sans-serif;}
-  .modal-box .news-date{display:block;margin-bottom:16px;}
-  .modal-box p{color:#d3e0ee;line-height:1.65;font-size:15.5px;white-space:pre-line;}
+        /* ---------- MODAL DE NOTÍCIA ---------- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 900;
+            background: rgba(3, 8, 16, .8);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .modal-overlay.open {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        .modal-box {
+            max-width: 640px;
+            width: 100%;
+            max-height: 82vh;
+            overflow-y: auto;
+            background: rgba(1, 31, 68, 0.9);
+            border: 1px solid var(--panel-line);
+            border-radius: 18px;
+            padding: 0 0 28px 0;
+            box-shadow: 0 30px 70px rgba(0, 0, 0, .7);
+            animation: modalSlide 0.35s ease;
+        }
+        @keyframes modalSlide {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .modal-box img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 18px 18px 0 0;
+        }
+        .modal-inner {
+            padding: 24px 28px 0 28px;
+        }
+        .modal-close {
+            position: sticky;
+            top: 12px;
+            float: right;
+            margin: 12px 12px 0 0;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, .6);
+            color: #fff;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s;
+            z-index: 10;
+        }
+        .modal-close:hover {
+            background: var(--red);
+            transform: scale(1.1);
+        }
+        .modal-box h3 {
+            margin: 0 0 6px 0;
+            font-size: 24px;
+            color: var(--gold);
+            font-family: 'Orbitron', sans-serif;
+        }
+        .modal-box .news-date {
+            display: block;
+            margin-bottom: 16px;
+        }
+        .modal-box p {
+            color: #d3e0ee;
+            line-height: 1.65;
+            font-size: 15.5px;
+            white-space: pre-line;
+        }
 
-  /* ---------- SOBRE / COMO JOGAR ---------- */
-  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1180px;margin:0 auto;}
-  .panel{background:rgba(1, 31, 68, .4);border:1px solid var(--panel-line);border-radius:16px;padding:26px 28px;backdrop-filter: blur(2px); position: relative; overflow: hidden;}
-  .panel h3{margin:0 0 14px 0;font-size:19px;letter-spacing:1px;color:var(--gold);}
-  .panel p{color:var(--text-dim);line-height:1.6;font-size:15px;margin:0;}
-  .panel::after {
-    content: "✈"; position: absolute; right: -20px; bottom: -20px; font-size: 140px; opacity: 0.05; transform: rotate(-20deg); pointer-events: none; color: var(--blue);
-  }
-  .step-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;}
-  .step-list li{display:flex;gap:12px;align-items:flex-start;color:var(--text-dim);font-size:15px;line-height:1.5;}
-  .step-num{
-    flex-shrink:0;width:26px;height:26px;border-radius:50%;
-    background:linear-gradient(135deg,var(--blue),#013d6b);
-    display:flex;align-items:center;justify-content:center;
-    font-family:'Orbitron',sans-serif;font-size:12px;font-weight:800;color:#fff;
-  }
+        /* ---------- MODAL DE PODER DO AVIÃO ---------- */
+        .power-modal-content {
+            text-align: center;
+        }
+        .power-modal-content .power-img {
+            width: 100%;
+            max-height: 250px;
+            object-fit: contain;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            margin: 0 auto 20px;
+            border: 2px solid var(--panel-line);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+        }
+        .power-modal-content .plane-name {
+            font-size: 22px;
+            color: var(--gold);
+            font-family: 'Orbitron', sans-serif;
+            margin: 0 0 6px;
+        }
+        .power-modal-content .power-title {
+            font-size: 13px;
+            letter-spacing: 2px;
+            color: var(--blue);
+            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 12px;
+        }
+        .power-modal-content .power-desc {
+            color: #d3e0ee;
+            line-height: 1.6;
+            font-size: 15px;
+            text-align: left;
+        }
 
-  /* ---------- STATUS BAR ---------- */
-  .status-bar{
-    max-width:1180px;margin:0 auto;
-    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;
-    background:rgba(1, 31, 68, .4);border:1px solid var(--panel-line);border-radius:14px;padding:18px 28px;backdrop-filter: blur(2px);
-  }
-  .status-bar .left{display:flex;align-items:center;gap:14px;}
-  .status-bar h4{margin:0;font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:1.5px;color:var(--text-dim);}
-  .status-pill{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
-  .status-pill.online{color:var(--green);}
-  .status-pill.offline{color:var(--red);}
-  .players-online{color:var(--text-dim);font-size:14px;}
+        /* ---------- SOBRE / COMO JOGAR ---------- */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 28px 30px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+        }
+        .panel:hover {
+            border-color: rgba(242, 183, 5, 0.3);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+        }
+        .panel h3 {
+            margin: 0 0 14px 0;
+            font-size: 19px;
+            letter-spacing: 1px;
+            color: var(--gold);
+        }
+        .panel p {
+            color: var(--text-dim);
+            line-height: 1.6;
+            font-size: 15px;
+            margin: 0;
+        }
+        .panel h3,
+        .panel p {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+        .panel::after {
+            content: "✈";
+            position: absolute;
+            right: -20px;
+            bottom: -20px;
+            font-size: 140px;
+            opacity: 0.06;
+            transform: rotate(-20deg);
+            pointer-events: none;
+            color: var(--blue);
+        }
+        .step-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .step-list li {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            color: var(--text-dim);
+            font-size: 15px;
+            line-height: 1.5;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+        .step-num {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--blue), #013d6b);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            color: #fff;
+            box-shadow: 0 0 14px rgba(5, 131, 242, 0.4);
+        }
 
-  /* ---------- BANNER DISCORD ---------- */
-  .discord-banner{
-    max-width:1180px;margin:0 auto;
-    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;
-    background:linear-gradient(135deg, var(--navy), var(--purple));
-    border-radius:16px;padding:24px 32px;border:1px solid rgba(5, 131, 242, 0.3);
-    box-shadow: 0 10px 20px rgba(0,0,0,.3);
-  }
-  .discord-banner .left{display:flex;align-items:center;gap:16px;}
-  .discord-banner .left h3{margin:0 0 4px 0;font-size:clamp(18px, 2vw, 22px);font-family:'Orbitron',sans-serif;color:#FFFFFF;}
-  .discord-banner .left p{margin:0;color:#aebfd4;font-size:14px;}
-  .btn-primary{
-    background:var(--blue);color:#fff;padding:12px 32px;border-radius:8px;
-    font-family:'Orbitron',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;
-    transition:0.2s;text-decoration:none;border:none;box-shadow:0 4px 10px rgba(5, 131, 242, .3);
-  }
-  .btn-primary:hover{background:#046dc9;transform:scale(1.02);}
+        /* ---------- STATUS BAR ---------- */
+        .status-bar {
+            max-width: 1180px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 18px 28px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+        }
+        .status-bar .left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .status-bar h4 {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+        }
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .status-pill.online {
+            color: var(--green);
+        }
+        .status-pill.offline {
+            color: var(--red);
+        }
+        .players-online {
+            color: var(--text-dim);
+            font-size: 14px;
+        }
 
-  /* ---------- SOBRE (página completa) ---------- */
-  .about-lead{max-width:820px;margin:0 auto 40px auto;text-align:center;color:#d3e0ee;font-size:16px;line-height:1.7;}
-  .about-lead b{color:var(--gold);}
-  .subsection-heading{
-    font-size:18px;color:var(--blue);font-family:'Orbitron',sans-serif;letter-spacing:1px;
-    margin:46px auto 18px auto;max-width:1180px;display:flex;align-items:center;gap:10px;
-  }
-  .subsection-heading::before{content:"";width:5px;height:22px;background:var(--blue);border-radius:3px;display:block;}
+        /* ---------- BANNER PROJETOS ---------- */
+        .discord-banner {
+            max-width: 1180px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            background: linear-gradient(135deg, rgba(1, 31, 68, 0.6), rgba(80, 2, 154, 0.5));
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 24px 32px;
+            border: 1px solid rgba(5, 131, 242, 0.35);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+        }
+        .discord-banner:hover {
+            border-color: rgba(242, 183, 5, 0.5);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 30px rgba(80, 2, 154, 0.3);
+        }
+        .discord-banner .left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .discord-banner .left h3 {
+            margin: 0 0 4px 0;
+            font-size: clamp(18px, 2vw, 22px);
+            font-family: 'Orbitron', sans-serif;
+            color: #FFFFFF;
+        }
+        .discord-banner .left p {
+            margin: 0;
+            color: #aebfd4;
+            font-size: 14px;
+        }
+        .discord-banner .left h3,
+        .discord-banner .left p {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+        .btn-primary {
+            background: var(--blue);
+            color: #fff;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 1px;
+            transition: 0.25s;
+            text-decoration: none;
+            border: none;
+            box-shadow: 0 4px 16px rgba(5, 131, 242, .3);
+        }
+        .btn-primary:hover {
+            background: #046dc9;
+            transform: scale(1.04);
+            box-shadow: 0 6px 24px rgba(5, 131, 242, .5);
+        }
 
-  .plane-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;max-width:1180px;margin:0 auto;}
-  .plane-card{background:rgba(1, 31, 68, .4);border:1px solid var(--panel-line);border-radius:12px;padding:16px 18px;backdrop-filter: blur(2px);}
-  .plane-card .cat{font-family:'Orbitron',sans-serif;font-size:9.5px;letter-spacing:1px;color:var(--gold);text-transform:uppercase;}
-  .plane-card h4{margin:6px 0 6px 0;font-size:16px;color:var(--text);}
-  .plane-card p{margin:0;font-size:13.5px;color:var(--text-dim);line-height:1.45;}
+        /* ---------- SOBRE (página completa) ---------- */
+        .about-lead {
+            max-width: 820px;
+            margin: 0 auto 40px auto;
+            text-align: center;
+            color: #d3e0ee;
+            font-size: 16px;
+            line-height: 1.7;
+            text-shadow: 0 2px 6px #000;
+        }
+        .about-lead b {
+            color: var(--gold);
+        }
+        .subsection-heading {
+            font-size: 18px;
+            color: var(--blue);
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+            margin: 46px auto 18px auto;
+            max-width: 1180px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 6px #000;
+        }
+        .subsection-heading::before {
+            content: "";
+            width: 5px;
+            height: 24px;
+            background: var(--blue);
+            border-radius: 3px;
+            display: block;
+            box-shadow: 0 0 14px rgba(5, 131, 242, 0.5);
+        }
 
-  .feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:1180px;margin:0 auto;}
-  .feature-card{background:rgba(1, 31, 68, .4);border:1px solid var(--panel-line);border-radius:14px;padding:20px 22px;backdrop-filter: blur(2px);}
-  .feature-card .emoji{font-size:26px;}
-  .feature-card h4{margin:10px 0 6px 0;font-size:16px;color:var(--gold);}
-  .feature-card p{margin:0;color:var(--text-dim);font-size:14.5px;line-height:1.55;}
+        .plane-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 18px;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .plane-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .plane-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(242, 183, 5, 0.4);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(5, 131, 242, 0.2);
+        }
+        .plane-card .plane-img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: rgba(1, 31, 68, .6);
+            transition: transform 0.4s;
+        }
+        .plane-card:hover .plane-img {
+            transform: scale(1.06);
+        }
+        .plane-card .plane-info {
+            padding: 14px 18px;
+            position: relative;
+        }
+        .plane-card .click-hint {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            font-size: 18px;
+            opacity: 0.6;
+            color: var(--gold);
+            transition: all 0.3s;
+        }
+        .plane-card:hover .click-hint {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        .plane-card .cat {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 9.5px;
+            letter-spacing: 1px;
+            color: var(--gold);
+            text-transform: uppercase;
+        }
+        .plane-card h4 {
+            margin: 6px 0 6px 0;
+            font-size: 16px;
+            color: #fff;
+        }
+        .plane-card p {
+            margin: 0;
+            font-size: 13.5px;
+            color: var(--text-dim);
+            line-height: 1.45;
+        }
+        .plane-card h4,
+        .plane-card p,
+        .plane-card .cat {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
 
-  /* ---------- DEV ---------- */
-  .dev-panel{
-    max-width:900px;margin:0 auto;
-    background:linear-gradient(135deg,rgba(5, 131, 242, .06),rgba(242, 183, 5, .05));
-    border:1px solid var(--panel-line);border-radius:18px;padding:32px 34px;text-align:center;
-  }
-  .dev-panel h3{margin:0 0 4px 0;font-size:20px;color:var(--gold);}
-  .dev-panel .role{color:var(--blue);font-size:13px;letter-spacing:1px;margin-bottom:16px;font-family:'Orbitron',sans-serif;}
-  .dev-panel p{color:#d3e0ee;line-height:1.7;font-size:15px;text-align:left;margin:0 auto;max-width:760px;}
+        /* ---------- PILOTOS GRID ---------- */
+        .pilot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 16px;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .pilot-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            overflow: hidden;
+            text-align: center;
+            padding: 16px 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+        }
+        .pilot-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(242, 183, 5, 0.4);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(242, 183, 5, 0.2);
+        }
+        .pilot-card img {
+            width: 90px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            border: 3px solid var(--panel-line);
+            background: rgba(1, 31, 68, .6);
+            transition: all 0.3s;
+        }
+        .pilot-card:hover img {
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(242, 183, 5, 0.4);
+        }
+        .pilot-card .pilot-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: var(--text);
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
 
-  /* ---------- CONTATO ---------- */
-  .contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:700px;margin:0 auto;}
-  .contact-card{
-    background:rgba(1, 31, 68, .4);border:1px solid var(--panel-line);border-radius:14px;padding:22px;backdrop-filter: blur(2px);
-    display:flex;align-items:center;gap:14px;transition:border-color .2s ease, transform .2s ease;
-  }
-  .contact-card:hover{border-color:var(--gold);transform:translateY(-3px);}
-  .contact-card svg{width:26px;height:26px;color:var(--gold);flex-shrink:0;}
-  .contact-card .label{font-size:11px;letter-spacing:1px;color:var(--text-dim);font-family:'Orbitron',sans-serif;}
-  .contact-card .value{font-size:15px;color:var(--text);font-weight:600;word-break:break-all;}
+        /* ---------- OUTDOOR BANNER ---------- */
+        .outdoor-banner {
+            max-width: 1180px;
+            margin: 30px auto;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            border: 2px solid var(--card-border);
+            transition: all 0.3s;
+        }
+        .outdoor-banner:hover {
+            border-color: rgba(242, 183, 5, 0.5);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(242, 183, 5, 0.2);
+            transform: scale(1.01);
+        }
+        .outdoor-banner img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
 
-  /* ---------- FOOTER ---------- */
-  footer{
-    border-top:1px solid var(--panel-line);padding:24px 6vw;
-    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
-    position:relative;z-index:2;background:var(--navy);
-  }
-  .footer-logo{display:flex;align-items:center;gap:10px;}
-  .footer-logo img{height:34px;}
-  footer .copy{font-size:13px;color:#6f89a8;}
-  .footer-social{display:flex;gap:10px;}
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .feature-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 20px 22px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(242, 183, 5, 0.3);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+        }
+        .feature-card .emoji {
+            font-size: 30px;
+            transition: transform 0.3s;
+            display: inline-block;
+        }
+        .feature-card:hover .emoji {
+            transform: scale(1.2) rotate(-5deg);
+        }
+        .feature-card h4 {
+            margin: 10px 0 6px 0;
+            font-size: 16px;
+            color: var(--gold);
+        }
+        .feature-card p {
+            margin: 0;
+            color: var(--text-dim);
+            font-size: 14.5px;
+            line-height: 1.55;
+        }
+        .feature-card h4,
+        .feature-card p {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
 
-  @media (max-width:880px){
-    .two-col{grid-template-columns:1fr;}
-    nav.main-nav{gap:26px;}
-  }
-  @media (max-width:640px){
-    header{padding:12px 18px;}
-    nav.main-nav{display:none;}
-    section{padding:40px 5vw;}
-    .hero-content{padding:20vw 5vw 6vw 5vw;}
-    .discord-banner .left{flex-direction: column; align-items: flex-start;}
-    .discord-banner{flex-direction: column; align-items: stretch;}
-    .btn-primary{text-align: center;}
-  }
-</style>
+        /* ---------- DEV ---------- */
+        .dev-panel {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 32px 34px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            transition: all 0.3s;
+        }
+        .dev-panel:hover {
+            border-color: rgba(242, 183, 5, 0.4);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+        }
+        .dev-panel h3 {
+            margin: 0 0 4px 0;
+            font-size: 20px;
+            color: var(--gold);
+        }
+        .dev-panel .role {
+            color: var(--blue);
+            font-size: 13px;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            font-family: 'Orbitron', sans-serif;
+        }
+        .dev-panel p {
+            color: #d3e0ee;
+            line-height: 1.7;
+            font-size: 15px;
+            text-align: left;
+            margin: 0 auto;
+            max-width: 760px;
+        }
+        .dev-panel h3,
+        .dev-panel .role,
+        .dev-panel p {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+
+        /* ---------- CONTATO ---------- */
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .contact-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 22px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: all .3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+        }
+        .contact-card:hover {
+            border-color: var(--gold);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(242, 183, 5, 0.25);
+        }
+        .contact-card svg {
+            width: 26px;
+            height: 26px;
+            color: var(--gold);
+            flex-shrink: 0;
+        }
+        .contact-card .label {
+            font-size: 11px;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            font-family: 'Orbitron', sans-serif;
+        }
+        .contact-card .value {
+            font-size: 15px;
+            color: var(--text);
+            font-weight: 600;
+            word-break: break-all;
+        }
+        .contact-card .label,
+        .contact-card .value {
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+
+        /* ---------- FOOTER ---------- */
+        footer {
+            border-top: 1px solid var(--panel-line);
+            padding: 24px 6vw;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            position: relative;
+            z-index: 2;
+            background: rgba(1, 31, 68, 0.55);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+        }
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .footer-logo img {
+            height: 34px;
+            filter: drop-shadow(0 0 10px rgba(5, 131, 242, 0.3));
+        }
+        footer .copy {
+            font-size: 13px;
+            color: #8aa0bb;
+        }
+        .footer-social {
+            display: flex;
+            gap: 10px;
+        }
+
+        @media (max-width: 880px) {
+            .two-col {
+                grid-template-columns: 1fr;
+            }
+            nav.main-nav {
+                gap: 20px;
+            }
+            .plane-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+            .pilot-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+        }
+        @media (max-width: 640px) {
+            header {
+                padding: 12px 18px;
+            }
+            nav.main-nav {
+                display: none;
+            }
+            section {
+                padding: 40px 5vw;
+            }
+            .hero-wrapper {
+                padding: 12vw 5vw 2vw 5vw;
+                max-width: 100%;
+            }
+            .discord-banner .left {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .discord-banner {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn-primary {
+                text-align: center;
+            }
+            .plane-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .pilot-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            }
+        }
+    </style>
 </head>
 <body>
 
-<header>
-  <div class="logo-wrap">
-    <img src="public/img/logo.png" alt="Batalha Aérea">
-  </div>
-
-  <nav class="main-nav" id="main-nav">
-    <a href="#inicio" data-view="inicio" class="active">INÍCIO</a>
-    <a href="#noticias" data-view="noticias">NOTÍCIAS</a>
-    <a href="#sobre" data-view="sobre">SOBRE</a>
-    <a href="#contato" data-view="contato">CONTATO</a>
-  </nav>
-
-  <div class="header-right">
-    <a class="icon-btn" id="discord-btn" href="#" target="_blank" rel="noopener" title="Discord">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.369A19.79 19.79 0 0 0 16.558 3c-.211.375-.444.879-.608 1.279a18.27 18.27 0 0 0-3.9 0C11.885 3.879 11.65 3.375 11.438 3a19.736 19.736 0 0 0-3.762 1.371C4.68 8.09 3.93 11.71 4.305 15.28A19.9 19.9 0 0 0 8.32 17.5c.324-.44.612-.91.86-1.406a12.9 12.9 0 0 1-1.354-.646c.114-.083.226-.17.334-.258 2.61 1.198 5.44 1.198 8.02 0 .11.09.222.175.334.258-.432.256-.888.475-1.354.646.248.497.536.966.86 1.406a19.86 19.86 0 0 0 4.017-2.22c.44-4.136-.638-7.723-2.72-10.91ZM9.68 13.35c-.784 0-1.428-.72-1.428-1.6 0-.88.63-1.6 1.428-1.6.804 0 1.443.73 1.428 1.6 0 .88-.624 1.6-1.428 1.6Zm4.66 0c-.784 0-1.428-.72-1.428-1.6 0-.88.63-1.6 1.428-1.6.804 0 1.443.73 1.428 1.6 0 .88-.624 1.6-1.428 1.6Z"/></svg>
-    </a>
-
-    <div class="profile-menu">
-      <button class="icon-btn" id="profile-btn" title="Perfil">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </button>
-      <div class="profile-dropdown" id="profile-dropdown">
-        <span class="soon-tag">EM BREVE</span>
-        <input type="text" placeholder="Usuário" disabled>
-        <input type="password" placeholder="Senha" disabled>
-        <button class="fake-login" disabled>SISTEMA DE LOGIN EM BREVE</button>
-      </div>
-    </div>
-
-    <a class="icon-btn" id="github-btn" href="#" target="_blank" rel="noopener" title="Repositório no GitHub">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
-    </a>
-  </div>
-</header>
-
-<!-- ============================================================
-     PÁGINA: INÍCIO
-============================================================ -->
-<main class="view active" id="view-inicio">
-  <div class="hero-content">
-    <h1>
-      <span class="white-line">PREPARE-SE PARA A</span>
-      <span class="gold-line">BATALHA!</span>
-    </h1>
-    <p class="subtitle">Comande poderosos aviões, participe de batalhas intensas e domine os céus!</p>
-
-    <a href="#" id="play-btn-link" class="play-btn-link" target="_blank" rel="noopener">
-      <img src="public/img/BOTÃO-JOGAR-AGORA.png" alt="Jogar agora" onerror="this.parentElement.innerHTML='<span class=&quot;play-btn-fallback&quot;>✈️ JOGAR AGORA!</span>'">
-    </a>
-
-    <div class="server-status-line">
-      <span class="dot" id="hero-status-dot"></span>
-      <span id="hero-status-text">Verificando servidor...</span>
-    </div>
-  </div>
-
-  <section id="noticias-home">
-    <div class="section-title"><h2>NOTÍCIAS E ATUALIZAÇÕES</h2></div>
-    <div class="news-grid" id="news-grid-home"></div>
-  </section>
-
-  <section id="resumo">
-    <div class="two-col">
-      <div class="panel">
-        <h3>SOBRE O JOGO</h3>
-        <p>Batalha Aérea é um jogo de simulação e combate multiplayer onde você pilota aviões incríveis em missões eletrizantes contra outros jogadores em tempo real. Desbloqueie aeronaves, domine habilidades especiais e seja o ás dos céus.</p>
-      </div>
-      <div class="panel">
-        <h3>COMO JOGAR</h3>
-        <ul class="step-list">
-          <li><span class="step-num">1</span>Clique no botão <b>JOGAR AGORA!</b> lá em cima (não precisa de login para começar).</li>
-          <li><span class="step-num">2</span>Aguarde o carregamento do jogo no seu navegador.</li>
-          <li><span class="step-num">3</span>Escolha seu piloto, seu avião e entre na batalha!</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section id="status">
-    <div class="status-bar">
-      <div class="left">
-        <h4>STATUS DO SERVIDOR</h4>
-        <div class="status-pill" id="status-pill">
-          <span class="dot" id="status-dot"></span>
-          <span id="status-text">Verificando...</span>
+    <header>
+        <div class="logo-wrap">
+            <img src="public/img/logo.png" alt="Batalha Aérea">
         </div>
-      </div>
-      <div class="players-online" id="players-online-wrap" style="display:none;">
-        Jogadores Online: <b id="players-online-count">-</b>
-      </div>
-    </div>
-  </section>
 
-  <section id="discord-cta" style="border-top: none; padding-top: 20px;">
-    <div class="discord-banner">
-      <div class="left">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="#FFFFFF"><path d="M20.317 4.369A19.79 19.79 0 0 0 16.558 3c-.211.375-.444.879-.608 1.279a18.27 18.27 0 0 0-3.9 0C11.885 3.879 11.65 3.375 11.438 3a19.736 19.736 0 0 0-3.762 1.371C4.68 8.09 3.93 11.71 4.305 15.28A19.9 19.9 0 0 0 8.32 17.5c.324-.44.612-.91.86-1.406a12.9 12.9 0 0 1-1.354-.646c.114-.083.226-.17.334-.258 2.61 1.198 5.44 1.198 8.02 0 .11.09.222.175.334.258-.432.256-.888.475-1.354.646.248.497.536.966.86 1.406a19.86 19.86 0 0 0 4.017-2.22c.44-4.136-.638-7.723-2.72-10.91ZM9.68 13.35c-.784 0-1.428-.72-1.428-1.6 0-.88.63-1.6 1.428-1.6.804 0 1.443.73 1.428 1.6 0 .88-.624 1.6-1.428 1.6Zm4.66 0c-.784 0-1.428-.72-1.428-1.6 0-.88.63-1.6 1.428-1.6.804 0 1.443.73 1.428 1.6 0 .88-.624 1.6-1.428 1.6Z"/></svg>
-        <div>
-          <h3>ENTRE NO NOSSO DISCORD!</h3>
-          <p>Participe da comunidade, tire dúvidas e fique por dentro de tudo!</p>
+        <nav class="main-nav" id="main-nav">
+            <a href="#inicio" data-view="inicio" class="active">INÍCIO</a>
+            <a href="#noticias" data-view="noticias">NOTÍCIAS</a>
+            <a href="#sobre" data-view="sobre">SOBRE</a>
+            <a href="#contato" data-view="contato">CONTATO</a>
+        </nav>
+
+        <div class="header-right">
+            <a class="icon-btn" id="discord-btn" href="#" target="_blank" rel="noopener" title="Portfólio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </a>
+
+            <div class="profile-menu">
+                <button class="icon-btn" id="profile-btn" title="Perfil">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+                <div class="profile-dropdown" id="profile-dropdown">
+                    <span class="soon-tag">EM BREVE</span>
+                    <input type="text" placeholder="Usuário" disabled>
+                    <input type="password" placeholder="Senha" disabled>
+                    <button class="fake-login" disabled>SISTEMA DE LOGIN EM BREVE</button>
+                </div>
+            </div>
+
+            <a class="icon-btn" id="github-btn" href="https://github.com/GahSouzaDev/Batalha-Aerea" target="_blank" rel="noopener" title="Repositório no GitHub">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+            </a>
         </div>
-      </div>
-      <a href="#" id="discord-cta-btn" target="_blank" rel="noopener" class="btn-primary">ENTRAR</a>
-    </div>
-  </section>
+    </header>
 
-  <footer>
-    <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
-    <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
-    <div class="footer-social">
-      <a class="icon-btn" href="#" id="footer-github-1" target="_blank" rel="noopener" title="GitHub">
-        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
-      </a>
-      <a class="icon-btn" href="#" id="footer-email-1" title="E-mail">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
-      </a>
-    </div>
-  </footer>
-</main>
+    <!-- ============================================================
+         PÁGINA: INÍCIO
+    ============================================================ -->
+    <main class="view active" id="view-inicio">
+        <div class="hero-wrapper">
+            <div class="hero-content">
+                <h1>
+                    <span class="white-line">PREPARE-SE PARA A</span>
+                    <span class="gold-line">BATALHA!</span>
+                </h1>
+                <p class="subtitle">Comande poderosos aviões, participe de batalhas intensas e domine os céus!</p>
 
-<!-- ============================================================
-     PÁGINA: NOTÍCIAS
-============================================================ -->
-<main class="view" id="view-noticias">
-  <div class="page-header">
-    <h1>NOTÍCIAS</h1>
-    <p>Todas as atualizações e novidades do Batalha Aérea.</p>
-  </div>
-  <section>
-    <div class="news-list-full" id="news-list-full"></div>
-  </section>
-  <footer>
-    <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
-    <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
-    <div class="footer-social">
-      <a class="icon-btn" href="#" id="footer-github-2" target="_blank" rel="noopener" title="GitHub">
-        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
-      </a>
-      <a class="icon-btn" href="#" id="footer-email-2" title="E-mail">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
-      </a>
-    </div>
-  </footer>
-</main>
+                <a href="#" id="play-btn-link" class="play-btn-link" target="_blank" rel="noopener">
+                    <img src="public/img/BOTÃO-JOGAR-AGORA.png" alt="Jogar agora" onerror="this.parentElement.innerHTML='<span class=&quot;play-btn-fallback&quot;>✈️ JOGAR AGORA!</span>'">
+                </a>
 
-<!-- ============================================================
-     PÁGINA: SOBRE
-============================================================ -->
-<main class="view" id="view-sobre">
-  <div class="page-header">
-    <h1>SOBRE O BATALHA AÉREA</h1>
-  </div>
-
-  <section style="padding-top:0;">
-    <p class="about-lead">
-      Batalha Aérea é um jogo multiplayer de combate aéreo feito em navegador, sem precisar instalar nada.
-      Você escolhe um piloto e um avião entre <b>15 aeronaves diferentes</b>, entra em uma sala com outros jogadores
-      e enfrenta o time adversário (ou todo mundo, na Sala Livre) usando mísseis, bombas e habilidades especiais
-      únicas de cada avião. O jogo conta com chat de voz posicional, então dá pra combinar estratégia com o time em tempo real.
-    </p>
-
-    <div class="subsection-heading">Aeronaves — hélice</div>
-    <div class="plane-grid">
-      <div class="plane-card"><span class="cat">Hélice clássica</span><h4>14-Bis</h4><p>O pioneiro. Leve e ágil, ótimo para iniciantes aprenderem os controles básicos de voo.</p></div>
-      <div class="plane-card"><span class="cat">Hélice</span><h4>Cessna</h4><p>Equilibrado entre manobra e estabilidade, o avião "padrão" pra quem tá pegando o jeito do jogo.</p></div>
-      <div class="plane-card"><span class="cat">Biplano</span><h4>Biplano</h4><p>Curva fechada, viradas rápidas — perfeito para combates corpo a corpo em baixa altitude.</p></div>
-    </div>
-
-    <div class="subsection-heading">Aeronaves — turboélice e bimotor</div>
-    <div class="plane-grid">
-      <div class="plane-card"><span class="cat">Bimotor</span><h4>Bimotor</h4><p>Mais resistente e com mais poder de fogo, em troca de menos agilidade nas curvas.</p></div>
-      <div class="plane-card"><span class="cat">Turboélice</span><h4>Piper Seneca</h4><p>Bom meio-termo entre velocidade e controle, ótimo pra voos de longa distância no mapa.</p></div>
-    </div>
-
-    <div class="subsection-heading">Aeronaves — jatos e turbina</div>
-    <div class="plane-grid">
-      <div class="plane-card"><span class="cat">Caça</span><h4>Gripen</h4><p>Caça multifunção ágil, com boa relação entre velocidade e capacidade de virada.</p></div>
-      <div class="plane-card"><span class="cat">Ataque</span><h4>A-1A AMX</h4><p>Focado em ataque, com armamento pesado pra pressionar o inimigo de perto.</p></div>
-      <div class="plane-card"><span class="cat">Caça furtivo</span><h4>F-22</h4><p>Um dos mais fortes em combate direto, porém mais difícil de dominar.</p></div>
-      <div class="plane-card"><span class="cat">Velocidade</span><h4>SR-71</h4><p>Extremamente rápido — a estratégia aqui é hit-and-run, atacar e sumir antes de revidarem.</p></div>
-      <div class="plane-card"><span class="cat">Comercial</span><h4>A380</h4><p>Gigante e resistente, mas lento e pouco manobrável. Difícil de abater, difícil de acertar também.</p></div>
-      <div class="plane-card"><span class="cat">Comercial</span><h4>B737</h4><p>Meio-termo entre porte e mobilidade em relação ao A380.</p></div>
-      <div class="plane-card"><span class="cat">Furtivo</span><h4>B-2</h4><p>Bombardeiro furtivo, valoriza ataques certeiros mais do que embates diretos.</p></div>
-    </div>
-
-    <div class="subsection-heading">Rotor e espaciais</div>
-    <div class="plane-grid">
-      <div class="plane-card"><span class="cat">Rotor</span><h4>Helicóptero</h4><p>Pode pairar no ar, ideal pra quem quer jogar de forma mais tática e posicional.</p></div>
-      <div class="plane-card"><span class="cat">Espacial</span><h4>OVNI</h4><p>Movimentação totalmente diferente das aeronaves convencionais — física própria e imprevisível.</p></div>
-      <div class="plane-card"><span class="cat">Espacial</span><h4>X-Wing</h4><p>Ágil e ofensivo, uma opção e tanto pra quem gosta de um combate espacial mais estilizado.</p></div>
-    </div>
-    <p style="max-width:1180px;margin:14px auto 0 auto;color:var(--text-dim);font-size:14.5px;text-align:center;">
-      O jogo foi pensado para que todo avião forte tenha outro capaz de enfrentá-lo diretamente —
-      cabe a você achar a melhor estratégia e a aeronave ideal para cada situação.
-    </p>
-
-    <div class="subsection-heading">Sistemas do jogo</div>
-    <div class="feature-grid">
-      <div class="feature-card"><span class="emoji">🎧</span><h4>Chat de voz</h4><p>Fale com o time em tempo real. Como não dá pra usar foto própria sem login, você escolhe entre 15 avatares de piloto para te representar.</p></div>
-      <div class="feature-card"><span class="emoji">🗺️</span><h4>Mapas variados</h4><p>Deserto (com as três pirâmides de Gizé — Quéops, Quéfren e Miquerinos — logo à frente da pista, em formação triangular), Floresta (densa, sem espaço livre pra pouso) e Laboratório (ambiente leve, facilita ver os projéteis). Todos com o mesmo tamanho, mudando só a composição do cenário.</p></div>
-      <div class="feature-card"><span class="emoji">🌦️</span><h4>Clima inteligente</h4><p>O clima muda de forma aleatória durante a partida — às vezes chove, às vezes surge uma neblina densa, mudando a visibilidade e a estratégia.</p></div>
-      <div class="feature-card"><span class="emoji">🎈</span><h4>Dirigível</h4><p>Aparece no meio da partida. Atire nele e cause uma explosão enorme — mas cuidado, o dano atinge todo mundo por perto, incluindo você.</p></div>
-      <div class="feature-card"><span class="emoji">⚔️</span><h4>Modos de jogo</h4><p>Times em colunas lado a lado, Sala Livre persistente pra todos contra todos, colisão estrutural com abate instantâneo e mais.</p></div>
-      <div class="feature-card"><span class="emoji">🏆</span><h4>Ranking (em breve)</h4><p>Com o sistema de login chegando, você vai poder acompanhar recordes e posição em um ranking em tempo real.</p></div>
-    </div>
-  </section>
-
-  <section style="padding-top:0;">
-    <div class="dev-panel">
-      <h3>Feito por Emerson Gabriel Alves de Souza</h3>
-      <div class="role">DESENVOLVEDOR SOLO</div>
-      <p>
-        Criei o Batalha Aérea pra jogar com meus amigos, me divertir e, principalmente, aprender.
-        Comecei escrevendo tudo em Three.js na mão, código puro pra gerar os modelos dos aviões — uma tecnologia
-        que eu já usava antes. Com o tempo, entraram algumas ferramentas de inteligência artificial pra ajudar a
-        gerar modelos mais interessantes e realistas, mas boa parte continua sendo trabalho manual, ajuste por ajuste.
-        Hoje o jogo mistura várias tecnologias novas pra mim, como o chat de voz, que venho implementando aos poucos —
-        tudo isso fazendo parte do processo de aprender construindo.
-      </p>
-    </div>
-  </section>
-
-  <footer>
-    <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
-    <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
-    <div class="footer-social">
-      <a class="icon-btn" href="#" id="footer-github-3" target="_blank" rel="noopener" title="GitHub">
-        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
-      </a>
-      <a class="icon-btn" href="#" id="footer-email-3" title="E-mail">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
-      </a>
-    </div>
-  </footer>
-</main>
-
-<!-- ============================================================
-     PÁGINA: CONTATO
-============================================================ -->
-<main class="view" id="view-contato">
-  <div class="page-header">
-    <h1>CONTATO</h1>
-  </div>
-  <section style="padding-top:0;">
-    <div class="contact-grid">
-      <a class="contact-card" id="contact-email" href="#">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
-        <div><div class="label">E-MAIL</div><div class="value" id="contact-email-value">-</div></div>
-      </a>
-      <a class="contact-card" id="contact-github" href="#" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
-        <div><div class="label">GITHUB</div><div class="value">Repositório do jogo</div></div>
-      </a>
-    </div>
-  </section>
-  <footer>
-    <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
-    <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
-    <div class="footer-social">
-      <a class="icon-btn" href="#" id="footer-github-4" target="_blank" rel="noopener" title="GitHub">
-        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
-      </a>
-      <a class="icon-btn" href="#" id="footer-email-4" title="E-mail">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
-      </a>
-    </div>
-  </footer>
-</main>
-
-<!-- ============================================================
-     MODAL DE NOTÍCIA
-============================================================ -->
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal-box" id="modal-box">
-    <button class="modal-close" id="modal-close">&times;</button>
-    <img id="modal-img" src="" alt="">
-    <div class="modal-inner">
-      <span class="news-tag" id="modal-tag"></span>
-      <h3 id="modal-title"></h3>
-      <span class="news-date" id="modal-date"></span>
-      <p id="modal-full"></p>
-    </div>
-  </div>
-</div>
-
-<script>
-/* ================================================================
-   CONFIGURAÇÕES DO SITE
-================================================================ */
-const SITE_CONFIG = {
-  GAME_LINK: "https://hosts-gras-dozens-personnel.trycloudflare.com/",
-  SERVER_ONLINE: true,
-  PLAYERS_ONLINE: 125,
-  REPO_URL: "https://github.com/SEU-USUARIO/SEU-REPOSITORIO",
-  CONTACT_EMAIL: "seuemail@exemplo.com",
-  DISCORD_URL: ""
-};
-
-/* ================================================================
-   NOTÍCIAS
-================================================================ */
-const NEWS = [
-  {
-    img: "public/img/noticia1.png",
-    tag: "ATUALIZAÇÃO 2.5",
-    title: "Agora com 15 aviões e 15 pilotos pra escolher!",
-    date: "20/07/2026",
-    short: "Novos aviões e melhorias!",
-    full: "Foram adicionados novos aviões: o jogo agora conta com 15 aeronaves diferentes, entre aviões de hélice, turboélice, aviões a jato/turbina e até naves espaciais. Todos foram pensados para ficar equilibrados entre si — um avião forte sempre vai ter outro capaz de enfrentá-lo diretamente, cabe a você encontrar a melhor estratégia e o avião ideal pra cada situação.\n\nAlém disso, o jogo conta com chat de voz. Pra trazer identidade além do nome (já que sem login não dá pra usar foto própria), agora dá pra escolher entre 15 avatares de piloto pra te representar em combate."
-  },
-  {
-    img: "public/img/noticia2.png",
-    tag: "NOVOS MAPAS",
-    title: "Deserto, Floresta e Laboratório chegaram!",
-    date: "12/07/2026",
-    short: "Três mapas novos, clima inteligente e um dirigível perigoso.",
-    full: "Chegaram três novos mapas ao jogo. O mapa do Deserto tem as três pirâmides de Gizé posicionadas bem à frente da pista, em formação triangular — decolar sem bater nelas já é um desafio à parte. O mapa da Floresta é uma área densa de árvores, sem espaço livre pra pouso; colidir com a vegetação pode causar grandes acidentes. Já o mapa do Laboratório é um ambiente experimental e mais leve, que facilita bastante a visualização dos projéteis em combate. Todos têm o mesmo tamanho, mudando só a composição do cenário.\n\nJunto com os mapas novos, chegou também um sistema de clima inteligente e aleatório — às vezes chove, às vezes surge uma neblina densa — além de um dirigível que aparece no meio da partida: atire nele pra causar uma explosão enorme, mas cuidado, o dano atinge todo mundo por perto, incluindo você."
-  },
-  {
-    img: "public/img/noticia3.png",
-    tag: "EM BREVE",
-    title: "Sistema de login e ranking chegando!",
-    date: "05/07/2026",
-    short: "Em breve você vai poder acompanhar recordes e posição no ranking.",
-    full: "Estamos trabalhando em um sistema de login para o Batalha Aérea. Com ele, vai ser possível acompanhar em tempo real seus recordes e sua posição em um ranking completo entre todos os jogadores. Fique de olho nas próximas atualizações!"
-  }
-];
-
-document.addEventListener("DOMContentLoaded", () => {
-  applyConfig();
-  renderNews();
-  setupModal();
-  setupProfileMenu();
-  setupRouter();
-});
-
-/* ---------------- Config ---------------- */
-function applyConfig(){
-  document.getElementById("play-btn-link").href = SITE_CONFIG.GAME_LINK;
-  document.getElementById("discord-cta-btn").href = SITE_CONFIG.DISCORD_URL || "#";
-
-  const online = !!SITE_CONFIG.SERVER_ONLINE;
-  const statusLabel = online ? "Servidor Online" : "Servidor Offline";
-
-  const heroDot = document.getElementById("hero-status-dot");
-  const heroText = document.getElementById("hero-status-text");
-  heroDot.className = "dot " + (online ? "online" : "offline");
-  heroText.textContent = statusLabel;
-
-  const statusDot = document.getElementById("status-dot");
-  const statusText = document.getElementById("status-text");
-  const statusPill = document.getElementById("status-pill");
-  statusDot.className = "dot " + (online ? "online" : "offline");
-  statusText.textContent = statusLabel;
-  statusPill.className = "status-pill " + (online ? "online" : "offline");
-
-  if (SITE_CONFIG.PLAYERS_ONLINE !== null && SITE_CONFIG.PLAYERS_ONLINE !== undefined) {
-    document.getElementById("players-online-wrap").style.display = "block";
-    document.getElementById("players-online-count").textContent = SITE_CONFIG.PLAYERS_ONLINE;
-  }
-
-  document.getElementById("github-btn").href = SITE_CONFIG.REPO_URL;
-  document.getElementById("contact-github").href = SITE_CONFIG.REPO_URL;
-  ["footer-github-1","footer-github-2","footer-github-3","footer-github-4"].forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.href = SITE_CONFIG.REPO_URL;
-  });
-
-  const discordBtn = document.getElementById("discord-btn");
-  if (SITE_CONFIG.DISCORD_URL) {
-    discordBtn.href = SITE_CONFIG.DISCORD_URL;
-  } else {
-    discordBtn.style.display = "none";
-  }
-
-  document.getElementById("contact-email-value").textContent = SITE_CONFIG.CONTACT_EMAIL;
-  document.getElementById("contact-email").href = "mailto:" + SITE_CONFIG.CONTACT_EMAIL;
-  ["footer-email-1","footer-email-2","footer-email-3","footer-email-4"].forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.href = "mailto:" + SITE_CONFIG.CONTACT_EMAIL;
-  });
-}
-
-/* ---------------- Renderização das notícias ---------------- */
-function renderNews(){
-  const gridHome = document.getElementById("news-grid-home");
-  const listFull = document.getElementById("news-list-full");
-
-  NEWS.slice(0,3).forEach((item, idx) => {
-    const card = document.createElement("div");
-    card.className = "news-card";
-    card.innerHTML = `
-      <img class="thumb" src="${item.img}" alt="${item.title}">
-      <div class="body">
-        <span class="news-tag">${item.tag}</span>
-        <h3>${item.title}</h3>
-        <p>${item.short}</p>
-        <div class="news-footer">
-          <span class="news-date">${item.date}</span>
-          <button class="btn-ghost" data-idx="${idx}">SAIBA MAIS</button>
+                <div class="server-status-line">
+                    <span class="dot" id="hero-status-dot"></span>
+                    <span id="hero-status-text">Verificando servidor...</span>
+                </div>
+            </div>
         </div>
-      </div>`;
-    gridHome.appendChild(card);
-  });
 
-  NEWS.forEach((item, idx) => {
-    const row = document.createElement("div");
-    row.className = "news-list-item";
-    row.innerHTML = `
-      <img src="${item.img}" alt="${item.title}">
-      <div class="info">
-        <span class="news-tag">${item.tag}</span>
-        <h4>${item.title}</h4>
-        <span class="news-date">${item.date}</span>
-      </div>
-      <button class="btn-ghost" data-idx="${idx}">SAIBA MAIS</button>`;
-    listFull.appendChild(row);
-  });
+        <section id="noticias-home">
+            <div class="section-title"><h2>NOTÍCIAS E ATUALIZAÇÕES</h2></div>
+            <div class="news-grid" id="news-grid-home"></div>
+        </section>
 
-  document.querySelectorAll("[data-idx]").forEach(btn => {
-    btn.addEventListener("click", () => openModal(parseInt(btn.dataset.idx)));
-  });
-}
+        <section id="resumo">
+            <div class="two-col">
+                <div class="panel">
+                    <h3>SOBRE O JOGO</h3>
+                    <p>Batalha Aérea é um jogo de simulação e combate multiplayer onde você pilota aviões incríveis em missões eletrizantes contra outros jogadores em tempo real. Desbloqueie aeronaves, domine habilidades especiais e seja o ás dos céus.</p>
+                </div>
+                <div class="panel">
+                    <h3>COMO JOGAR</h3>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span>Clique no botão <b>JOGAR AGORA!</b> lá em cima (não precisa de login para começar).</li>
+                        <li><span class="step-num">2</span>Aguarde o carregamento do jogo no seu navegador.</li>
+                        <li><span class="step-num">3</span>Escolha seu piloto, seu avião e entre na batalha!</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
 
-/* ---------------- Modal de notícia ---------------- */
-function setupModal(){
-  document.getElementById("modal-close").addEventListener("click", closeModal);
-  document.getElementById("modal-overlay").addEventListener("click", (e) => {
-    if (e.target.id === "modal-overlay") closeModal();
-  });
-}
-function openModal(idx){
-  const item = NEWS[idx];
-  document.getElementById("modal-img").src = item.img;
-  document.getElementById("modal-tag").textContent = item.tag;
-  document.getElementById("modal-title").textContent = item.title;
-  document.getElementById("modal-date").textContent = item.date;
-  document.getElementById("modal-full").textContent = item.full;
-  document.getElementById("modal-overlay").classList.add("open");
-}
-function closeModal(){
-  document.getElementById("modal-overlay").classList.remove("open");
-}
+        <section id="status">
+            <div class="status-bar">
+                <div class="left">
+                    <h4>STATUS DO SERVIDOR</h4>
+                    <div class="status-pill" id="status-pill">
+                        <span class="dot" id="status-dot"></span>
+                        <span id="status-text">Verificando...</span>
+                    </div>
+                </div>
+                <div class="players-online" id="players-online-wrap">
+                    Jogadores Online: <b id="players-online-count">5</b>
+                </div>
+            </div>
+        </section>
 
-/* ---------------- Menu de perfil ---------------- */
-function setupProfileMenu(){
-  const btn = document.getElementById("profile-btn");
-  const dropdown = document.getElementById("profile-dropdown");
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    dropdown.classList.toggle("open");
-  });
-  document.addEventListener("click", (e) => {
-    if (!dropdown.contains(e.target) && e.target !== btn) {
-      dropdown.classList.remove("open");
-    }
-  });
-}
+        <section id="projects-cta" style="border-top: none; padding-top: 20px;">
+            <div class="discord-banner">
+                <div class="left">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <div>
+                        <h3>CONHEÇA OUTROS PROJETOS</h3>
+                        <p>Visite meu portfólio e veja outros trabalhos incríveis!</p>
+                    </div>
+                </div>
+                <a href="https://www.gahsouza.com.br" id="projects-cta-btn" target="_blank" rel="noopener" class="btn-primary">ACESSAR SITE</a>
+            </div>
+        </section>
 
-/* ================================================================
-   ROTEADOR DE PÁGINAS
-================================================================ */
-const VALID_VIEWS = ["inicio","noticias","sobre","contato"];
+        <footer>
+            <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
+            <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
+            <div class="footer-social">
+                <a class="icon-btn" href="https://github.com/GahSouzaDev/Batalha-Aerea" target="_blank" rel="noopener" title="GitHub">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+                </a>
+                <a class="icon-btn" href="mailto:emerson.souza18@outlook.com" title="E-mail">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
+                </a>
+            </div>
+        </footer>
+    </main>
 
-function setupRouter(){
-  const links = document.querySelectorAll("#main-nav a[data-view]");
-  links.forEach(link => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      goToView(link.dataset.view);
-    });
-  });
+    <!-- ============================================================
+         PÁGINA: NOTÍCIAS
+    ============================================================ -->
+    <main class="view" id="view-noticias">
+        <div class="page-header">
+            <h1>NOTÍCIAS</h1>
+            <p>Todas as atualizações e novidades do Batalha Aérea.</p>
+        </div>
+        <section>
+            <div class="news-list-full" id="news-list-full"></div>
+        </section>
+        <footer>
+            <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
+            <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
+            <div class="footer-social">
+                <a class="icon-btn" href="https://github.com/GahSouzaDev/Batalha-Aerea" target="_blank" rel="noopener" title="GitHub">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+                </a>
+                <a class="icon-btn" href="mailto:emerson.souza18@outlook.com" title="E-mail">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
+                </a>
+            </div>
+        </footer>
+    </main>
 
-  window.addEventListener("hashchange", () => {
-    goToView(location.hash.replace("#","") || "inicio", false);
-  });
+    <!-- ============================================================
+         PÁGINA: SOBRE
+    ============================================================ -->
+    <main class="view" id="view-sobre">
+        <div class="page-header">
+            <h1>SOBRE O BATALHA AÉREA</h1>
+        </div>
 
-  const initial = location.hash.replace("#","");
-  goToView(VALID_VIEWS.includes(initial) ? initial : "inicio", false);
-}
+     
 
-function goToView(view, updateHash = true){
-  if (!VALID_VIEWS.includes(view)) view = "inicio";
+        <section style="padding-top:0;">
+            <p class="about-lead">
+                Batalha Aérea é um jogo multiplayer de combate aéreo feito em navegador, sem precisar instalar nada.
+                Você escolhe um piloto e um avião entre <b>15 aeronaves diferentes</b>, entra em uma sala com outros jogadores
+                e enfrenta o time adversário (ou todo mundo, na Sala Livre) usando mísseis, bombas e habilidades especiais
+                únicas de cada avião. O jogo conta com chat de voz posicional, então dá pra combinar estratégia com o time em tempo real.
+            </p>
 
-  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-  document.getElementById("view-" + view).classList.add("active");
+            <div class="subsection-heading">🛩️ Aeronaves — hélice</div>
+            <div class="plane-grid" id="plane-grid-helice"></div>
 
-  document.querySelectorAll("#main-nav a[data-view]").forEach(a => {
-    a.classList.toggle("active", a.dataset.view === view);
-  });
+            <div class="subsection-heading">🛫 Aeronaves — turboélice e bimotor</div>
+            <div class="plane-grid" id="plane-grid-turbo"></div>
 
-  if (updateHash) history.pushState(null, "", "#" + view);
-  window.scrollTo(0, 0);
-}
-</script>
+            <div class="subsection-heading">✈️ Aeronaves — jatos e turbina</div>
+            <div class="plane-grid" id="plane-grid-jets"></div>
+
+            <div class="subsection-heading">🚁 Rotor e espaciais</div>
+            <div class="plane-grid" id="plane-grid-rotor"></div>
+
+            <p style="max-width:1180px;margin:14px auto 0 auto;color:var(--text-dim);font-size:14.5px;text-align:center;text-shadow: 0 2px 6px #000;">
+                O jogo foi pensado para que todo avião forte tenha outro capaz de enfrentá-lo diretamente —
+                cabe a você achar a melhor estratégia e a aeronave ideal para cada situação.
+            </p>
+
+            <div class="subsection-heading">👨‍✈️ Escolha seu piloto — 15 avatares disponíveis</div>
+            <div class="pilot-grid" id="pilot-grid"></div>
+            <p style="max-width:1180px;margin:10px auto 0 auto;color:var(--text-dim);font-size:14px;text-align:center;text-shadow: 0 2px 6px #000;">
+                Sem sistema de login, sem foto própria — mas com 15 avatares irados pra você se identificar na batalha!
+            </p>
+
+            <div class="subsection-heading">⚙️ Sistemas do jogo</div>
+            <div class="feature-grid">
+                <div class="feature-card"><span class="emoji">🎧</span><h4>Chat de voz</h4><p>Fale com o time em tempo real. Como não dá pra usar foto própria sem login, você escolhe entre 15 avatares de piloto para te representar.</p></div>
+                <div class="feature-card"><span class="emoji">🗺️</span><h4>Mapas variados</h4><p>Deserto (com as três pirâmides de Gizé — Quéops, Quéfren e Miquerinos — logo à frente da pista, em formação triangular), Floresta (densa, sem espaço livre pra pouso) e Laboratório (ambiente leve, facilita ver os projéteis). Todos com o mesmo tamanho, mudando só a composição do cenário.</p></div>
+                <div class="feature-card"><span class="emoji">🌦️</span><h4>Clima inteligente</h4><p>O clima muda de forma aleatória durante a partida — às vezes chove, às vezes surge uma neblina densa, mudando a visibilidade e a estratégia.</p></div>
+                <div class="feature-card"><span class="emoji">🎈</span><h4>Dirigível</h4><p>Aparece no meio da partida. Atire nele e cause uma explosão enorme — mas cuidado, o dano atinge todo mundo por perto, incluindo você.</p></div>
+                <div class="feature-card"><span class="emoji">⚔️</span><h4>Modos de jogo</h4><p>Times em colunas lado a lado, Sala Livre persistente pra todos contra todos, colisão estrutural com abate instantâneo e mais.</p></div>
+                <div class="feature-card"><span class="emoji">🏆</span><h4>Ranking (em breve)</h4><p>Com o sistema de login chegando, você vai poder acompanhar recordes e posição em um ranking em tempo real.</p></div>
+            </div>
+        </section>
+
+        <section style="padding-top:0;">
+            <div class="dev-panel">
+                <h3>Feito por Emerson Gabriel Alves de Souza</h3>
+                <div class="role">DESENVOLVEDOR SOLO</div>
+                <p>
+                    Criei o Batalha Aérea pra jogar com meus amigos, me divertir e, principalmente, aprender.
+                    Comecei escrevendo tudo em Three.js na mão, código puro pra gerar os modelos dos aviões — uma tecnologia
+                    que eu já usava antes. Com o tempo, entraram algumas ferramentas de inteligência artificial pra ajudar a
+                    gerar modelos mais interessantes e realistas, mas boa parte continua sendo trabalho manual, ajuste por ajuste.
+                    Hoje o jogo mistura várias tecnologias novas pra mim, como o chat de voz, que venho implementando aos poucos —
+                    tudo isso fazendo parte do processo de aprender construindo.
+                </p>
+            </div>
+        </section>
+
+        <footer>
+            <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
+            <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
+            <div class="footer-social">
+                <a class="icon-btn" href="https://github.com/GahSouzaDev/Batalha-Aerea" target="_blank" rel="noopener" title="GitHub">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+                </a>
+                <a class="icon-btn" href="mailto:emerson.souza18@outlook.com" title="E-mail">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
+                </a>
+            </div>
+        </footer>
+    </main>
+
+    <!-- ============================================================
+         PÁGINA: CONTATO
+    ============================================================ -->
+    <main class="view" id="view-contato">
+        <div class="page-header">
+            <h1>CONTATO</h1>
+        </div>
+        <section style="padding-top:0;">
+            <div class="contact-grid">
+                <a class="contact-card" href="mailto:emerson.souza18@outlook.com">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
+                    <div><div class="label">E-MAIL</div><div class="value">emerson.souza18@outlook.com</div></div>
+                </a>
+                <a class="contact-card" href="https://github.com/GahSouzaDev/Batalha-Aerea" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+                    <div><div class="label">GITHUB</div><div class="value">Repositório do jogo</div></div>
+                </a>
+            </div>
+        </section>
+        <footer>
+            <div class="footer-logo"><img src="public/img/logo.png" alt="Batalha Aérea"></div>
+            <div class="copy">© 2026 Batalha Aérea. Todos os direitos reservados.</div>
+            <div class="footer-social">
+                <a class="icon-btn" href="https://github.com/GahSouzaDev/Batalha-Aerea" target="_blank" rel="noopener" title="GitHub">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.15-.01-2.09-3.2.59-4.03-.78-4.29-1.5-.14-.35-.75-1.44-1.28-1.73-.44-.24-1.06-.82-.02-.84.98-.02 1.68.9 1.91 1.27 1.12 1.87 2.91 1.35 3.62 1.03.11-.8.44-1.35.8-1.66-2.78-.32-5.7-1.4-5.7-6.2 0-1.37.49-2.5 1.29-3.38-.13-.32-.56-1.6.12-3.34 0 0 1.05-.34 3.45 1.29a11.8 11.8 0 0 1 6.28 0c2.4-1.63 3.45-1.29 3.45-1.29.68 1.74.25 3.02.12 3.34.8.88 1.29 2 1.29 3.38 0 4.81-2.93 5.87-5.72 6.18.45.39.85 1.15.85 2.33 0 1.68-.02 3.03-.02 3.44 0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+                </a>
+                <a class="icon-btn" href="mailto:emerson.souza18@outlook.com" title="E-mail">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M3 5h18v14H3z"/><path d="m3 6 9 7 9-7"/></svg>
+                </a>
+            </div>
+        </footer>
+    </main>
+
+    <!-- ============================================================
+         MODAL DE NOTÍCIA
+    ============================================================ -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-box" id="modal-box">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <img id="modal-img" src="" alt="">
+            <div class="modal-inner">
+                <span class="news-tag" id="modal-tag"></span>
+                <h3 id="modal-title"></h3>
+                <span class="news-date" id="modal-date"></span>
+                <p id="modal-full"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         MODAL DE PODER DO AVIÃO
+    ============================================================ -->
+    <div class="modal-overlay" id="power-modal-overlay">
+        <div class="modal-box" id="power-modal-box">
+            <button class="modal-close" id="power-modal-close">&times;</button>
+            <div class="modal-inner power-modal-content">
+                <span class="news-tag" id="power-modal-cat"></span>
+                <h3 class="plane-name" id="power-modal-name"></h3>
+                <div class="power-title">⚡ HABILIDADE ESPECIAL</div>
+                <img id="power-modal-img" src="" alt="Poder do avião" class="power-img" onerror="this.style.display='none';">
+                <p class="power-desc" id="power-modal-desc"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ================================================================
+           CONFIGURAÇÕES DO SITE
+        ================================================================ */
+        const SITE_CONFIG = {
+            GAME_LINK: "https://hosts-gras-dozens-personnel.trycloudflare.com/",
+            SERVER_ONLINE: true,
+            PLAYERS_ONLINE: 5,
+            REPO_URL: "https://github.com/GahSouzaDev/Batalha-Aerea",
+            CONTACT_EMAIL: "emerson.souza18@outlook.com",
+            PORTFOLIO_URL: "https://www.gahsouza.com.br"
+        };
+
+        /* ================================================================
+           NOTÍCIAS
+        ================================================================ */
+        const NEWS = [{
+            img: "public/img/noticia1.png",
+            tag: "ATUALIZAÇÃO 2.5",
+            title: "Agora com 15 aviões e 15 pilotos pra escolher!",
+            date: "20/07/2026",
+            short: "Novos aviões e melhorias!",
+            full: "Foram adicionados novos aviões: o jogo agora conta com 15 aeronaves diferentes, entre aviões de hélice, turboélice, aviões a jato/turbina e até naves espaciais. Todos foram pensados para ficar equilibrados entre si — um avião forte sempre vai ter outro capaz de enfrentá-lo diretamente, cabe a você encontrar a melhor estratégia e o avião ideal pra cada situação.\n\nAlém disso, o jogo conta com chat de voz. Pra trazer identidade além do nome (já que sem login não dá pra usar foto própria), agora dá pra escolher entre 15 avatares de piloto pra te representar em combate."
+        }, {
+            img: "public/img/noticia2.png",
+            tag: "NOVOS MAPAS",
+            title: "Deserto, Floresta e Laboratório chegaram!",
+            date: "12/07/2026",
+            short: "Três mapas novos, clima inteligente e um dirigível perigoso.",
+            full: "Chegaram três novos mapas ao jogo. O mapa do Deserto tem as três pirâmides de Gizé posicionadas bem à frente da pista, em formação triangular — decolar sem bater nelas já é um desafio à parte. O mapa da Floresta é uma área densa de árvores, sem espaço livre pra pouso; colidir com a vegetação pode causar grandes acidentes. Já o mapa do Laboratório é um ambiente experimental e mais leve, que facilita bastante a visualização dos projéteis em combate. Todos têm o mesmo tamanho, mudando só a composição do cenário.\n\nJunto com os mapas novos, chegou também um sistema de clima inteligente e aleatório — às vezes chove, às vezes surge uma neblina densa — além de um dirigível que aparece no meio da partida: atire nele pra causar uma explosão enorme, mas cuidado, o dano atinge todo mundo por perto, incluindo você."
+        }, {
+            img: "public/img/noticia3.png",
+            tag: "EM BREVE",
+            title: "Sistema de login e ranking chegando!",
+            date: "05/07/2026",
+            short: "Em breve você vai poder acompanhar recordes e posição no ranking.",
+            full: "Estamos trabalhando em um sistema de login para o Batalha Aérea. Com ele, vai ser possível acompanhar em tempo real seus recordes e sua posição em um ranking completo entre todos os jogadores. Fique de olho nas próximas atualizações!"
+        }];
+
+        /* ================================================================
+           AVIÕES E PODERES (15 aeronaves com imagem de poder)
+        ================================================================ */
+        const PLANES_DATA = [
+            { id: 1, cat: "Hélice clássica", name: "14-Bis", img: "public/img/quatorzebis-realista-card.png", poderImg: "public/img/poder1.png", poderDesc: "Rajada de Vento: Empurra os inimigos próximos para trás com uma forte corrente de ar, desestabilizando o voo deles por 3 segundos.", grid: "helice" },
+            { id: 2, cat: "Hélice", name: "Cessna", img: "public/img/cessna-realista-card.png", poderImg: "public/img/poder2.png", poderDesc: "Plano de Voo: Ativa piloto automático por 5 segundos, permitindo que você foque no ataque enquanto o avião mantém a rota.", grid: "helice" },
+            { id: 3, cat: "Biplano", name: "Biplano", img: "public/img/biplano-realista-card.png", poderImg: "public/img/poder3.png", poderDesc: "Loop Mortal: Executa um loop rápido que desvia de mísseis e deixa um rastro de fumaça que atrapalha a visão dos perseguidores.", grid: "helice" },
+            { id: 4, cat: "Bimotor", name: "Bimotor", img: "public/img/bimotor-realista-card.png", poderImg: "public/img/poder4.png", poderDesc: "Carga Pesada: Lança uma bomba de grande área que causa dano massivo a todos os inimigos no raio de explosão.", grid: "turbo" },
+            { id: 5, cat: "Turboélice", name: "Piper Seneca", img: "public/img/seneca-realista-card.png", poderImg: "public/img/poder5.png", poderDesc: "Cruzeiro Eficiente: Aumenta a velocidade em 30% por 8 segundos e reduz o consumo de combustível.", grid: "turbo" },
+            { id: 6, cat: "Caça", name: "Gripen", img: "public/img/jato-realista-card.png", poderImg: "public/img/poder6.png", poderDesc: "Míssil Teleguiado: Dispara um míssil que persegue o alvo mais próximo por até 4 segundos antes de explodir.", grid: "jets" },
+            { id: 7, cat: "Ataque", name: "A-1A AMX", img: "public/img/amx-realista-card.png", poderImg: "public/img/poder7.png", poderDesc: "Rajada de Metralhadora: Dispara uma rajada contínua de balas por 3 segundos, causando dano alto a curta distância.", grid: "jets" },
+            { id: 8, cat: "Caça furtivo", name: "F-22", img: "public/img/f22-realista-card.png", poderImg: "public/img/poder8.png", poderDesc: "Modo Furtivo: Fica invisível por 5 segundos, ideal para emboscadas e fugas táticas.", grid: "jets" },
+            { id: 9, cat: "Velocidade", name: "SR-71", img: "public/img/sr71-realista-card.png", poderImg: "public/img/poder9.png", poderDesc: "Turbo Supersônico: Velocidade extrema por 3 segundos, atravessando qualquer obstáculo sem sofrer dano.", grid: "jets" },
+            { id: 10, cat: "Comercial", name: "A380", img: "public/img/boing-realista-card.png", poderImg: "public/img/poder10.png", poderDesc: "Escudo de Fuselagem: Ativa um escudo que absorve 50% do dano recebido por 6 segundos.", grid: "jets" },
+            { id: 11, cat: "Comercial", name: "B737", img: "public/img/b737-realista-card.png", poderImg: "public/img/poder11.png", poderDesc: "Sinal de Emergência: Envia um pulso que revela a localização de todos os inimigos no mapa por 4 segundos.", grid: "jets" },
+            { id: 12, cat: "Furtivo", name: "B-2", img: "public/img/b2spirit-realista-card.png", poderImg: "public/img/poder12.png", poderDesc: "Bomba Guiada: Lança uma bomba que pode ser controlada manualmente até o alvo, causando dano devastador.", grid: "jets" },
+            { id: 13, cat: "Rotor", name: "Helicóptero", img: "public/img/heli-realista-card.png", poderImg: "public/img/poder13.png", poderDesc: "Pouso Tático: Paira no lugar e recupera 20% de vida ao longo de 5 segundos, mas fica vulnerável.", grid: "rotor" },
+            { id: 14, cat: "Espacial", name: "OVNI", img: "public/img/ovni-realista-card.png", poderImg: "public/img/poder14.png", poderDesc: "Teletransporte: Desaparece e reaparece em um local aleatório do mapa, confundindo os inimigos.", grid: "rotor" },
+            { id: 15, cat: "Espacial", name: "X-Wing", img: "public/img/xwing-realista-card.png", poderImg: "public/img/poder15.png", poderDesc: "Ataque em X: Dispara 4 lasers simultâneos em leque, atingindo múltiplos alvos à frente.", grid: "rotor" }
+        ];
+
+        /* ================================================================
+           PILOTOS (15 avatares)
+        ================================================================ */
+        const PILOTS = [];
+        for (let i = 1; i <= 15; i++) {
+            PILOTS.push({
+                img: `public/img/piloto${i}.png`,
+                name: `Piloto ${String(i).padStart(2, '0')}`
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            applyConfig();
+            renderNews();
+            renderPlanes();
+            renderPilots();
+            setupModals();
+            setupProfileMenu();
+            setupRouter();
+        });
+
+        function applyConfig() {
+            document.getElementById("play-btn-link").href = SITE_CONFIG.GAME_LINK;
+            document.getElementById("projects-cta-btn").href = SITE_CONFIG.PORTFOLIO_URL;
+            document.getElementById("github-btn").href = SITE_CONFIG.REPO_URL;
+            document.getElementById("discord-btn").href = SITE_CONFIG.PORTFOLIO_URL;
+
+            const online = !!SITE_CONFIG.SERVER_ONLINE;
+            const statusLabel = online ? "Servidor Online" : "Servidor Offline";
+
+            document.getElementById("hero-status-dot").className = "dot " + (online ? "online" : "offline");
+            document.getElementById("hero-status-text").textContent = statusLabel;
+            document.getElementById("status-dot").className = "dot " + (online ? "online" : "offline");
+            document.getElementById("status-text").textContent = statusLabel;
+            document.getElementById("status-pill").className = "status-pill " + (online ? "online" : "offline");
+
+            document.getElementById("players-online-count").textContent = SITE_CONFIG.PLAYERS_ONLINE;
+        }
+
+        function renderPlanes() {
+            const grids = {
+                helice: document.getElementById("plane-grid-helice"),
+                turbo: document.getElementById("plane-grid-turbo"),
+                jets: document.getElementById("plane-grid-jets"),
+                rotor: document.getElementById("plane-grid-rotor")
+            };
+
+            PLANES_DATA.forEach(plane => {
+                const card = document.createElement("div");
+                card.className = "plane-card";
+                card.innerHTML = `
+                    <img class="plane-img" src="${plane.img}" alt="${plane.name}" onerror="this.style.background='linear-gradient(135deg, #011F44, #50029A)'; this.style.minHeight='150px';">
+                    <div class="plane-info">
+                        <span class="click-hint">🔍</span>
+                        <span class="cat">${plane.cat}</span>
+                        <h4>${plane.name}</h4>
+                        <p>Clique para ver o poder especial</p>
+                    </div>`;
+                card.addEventListener("click", () => openPowerModal(plane));
+                if (grids[plane.grid]) {
+                    grids[plane.grid].appendChild(card);
+                }
+            });
+        }
+
+        function renderPilots() {
+            const grid = document.getElementById("pilot-grid");
+            if (!grid) return;
+            PILOTS.forEach(pilot => {
+                const card = document.createElement("div");
+                card.className = "pilot-card";
+                card.innerHTML = `
+                    <img src="${pilot.img}" alt="${pilot.name}" onerror="this.style.background='linear-gradient(135deg, #011F44, #50029A)'; this.style.minHeight='90px'; this.style.borderRadius='50%';">
+                    <div class="pilot-name">${pilot.name}</div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderNews() {
+            const gridHome = document.getElementById("news-grid-home");
+            const listFull = document.getElementById("news-list-full");
+
+            NEWS.slice(0, 3).forEach((item, idx) => {
+                const card = document.createElement("div");
+                card.className = "news-card";
+                card.innerHTML = `
+                    <img class="thumb" src="${item.img}" alt="${item.title}">
+                    <div class="body">
+                        <span class="news-tag">${item.tag}</span>
+                        <h3>${item.title}</h3>
+                        <p>${item.short}</p>
+                        <div class="news-footer">
+                            <span class="news-date">${item.date}</span>
+                            <button class="btn-ghost">SAIBA MAIS</button>
+                        </div>
+                    </div>`;
+                card.addEventListener("click", () => openNewsModal(idx));
+                gridHome.appendChild(card);
+            });
+
+            NEWS.forEach((item, idx) => {
+                const row = document.createElement("div");
+                row.className = "news-list-item";
+                row.innerHTML = `
+                    <img src="${item.img}" alt="${item.title}">
+                    <div class="info">
+                        <span class="news-tag">${item.tag}</span>
+                        <h4>${item.title}</h4>
+                        <span class="news-date">${item.date}</span>
+                    </div>
+                    <button class="btn-ghost">SAIBA MAIS</button>`;
+                row.addEventListener("click", () => openNewsModal(idx));
+                listFull.appendChild(row);
+            });
+        }
+
+        function setupModals() {
+            document.getElementById("modal-close").addEventListener("click", closeNewsModal);
+            document.getElementById("modal-overlay").addEventListener("click", (e) => {
+                if (e.target.id === "modal-overlay") closeNewsModal();
+            });
+            document.getElementById("power-modal-close").addEventListener("click", closePowerModal);
+            document.getElementById("power-modal-overlay").addEventListener("click", (e) => {
+                if (e.target.id === "power-modal-overlay") closePowerModal();
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") {
+                    closeNewsModal();
+                    closePowerModal();
+                }
+            });
+        }
+
+        function openNewsModal(idx) {
+            const item = NEWS[idx];
+            document.getElementById("modal-img").src = item.img;
+            document.getElementById("modal-tag").textContent = item.tag;
+            document.getElementById("modal-title").textContent = item.title;
+            document.getElementById("modal-date").textContent = item.date;
+            document.getElementById("modal-full").textContent = item.full;
+            document.getElementById("modal-overlay").classList.add("open");
+            document.body.style.overflow = "hidden";
+        }
+
+        function closeNewsModal() {
+            document.getElementById("modal-overlay").classList.remove("open");
+            document.body.style.overflow = "";
+        }
+
+        function openPowerModal(plane) {
+            document.getElementById("power-modal-cat").textContent = plane.cat;
+            document.getElementById("power-modal-name").textContent = plane.name;
+            document.getElementById("power-modal-img").src = plane.poderImg;
+            document.getElementById("power-modal-img").style.display = "block";
+            document.getElementById("power-modal-desc").textContent = plane.poderDesc;
+            document.getElementById("power-modal-overlay").classList.add("open");
+            document.body.style.overflow = "hidden";
+        }
+
+        function closePowerModal() {
+            document.getElementById("power-modal-overlay").classList.remove("open");
+            document.body.style.overflow = "";
+        }
+
+        function setupProfileMenu() {
+            const btn = document.getElementById("profile-btn");
+            const dropdown = document.getElementById("profile-dropdown");
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle("open");
+            });
+            document.addEventListener("click", (e) => {
+                if (!dropdown.contains(e.target) && e.target !== btn) {
+                    dropdown.classList.remove("open");
+                }
+            });
+        }
+
+        const VALID_VIEWS = ["inicio", "noticias", "sobre", "contato"];
+
+        function setupRouter() {
+            document.querySelectorAll("#main-nav a[data-view]").forEach(link => {
+                link.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    goToView(link.dataset.view);
+                });
+            });
+            window.addEventListener("hashchange", () => {
+                goToView(location.hash.replace("#", "") || "inicio", false);
+            });
+            goToView(VALID_VIEWS.includes(location.hash.replace("#", "")) ? location.hash.replace("#", "") : "inicio", false);
+        }
+
+        function goToView(view, updateHash = true) {
+            if (!VALID_VIEWS.includes(view)) view = "inicio";
+            document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+            document.getElementById("view-" + view).classList.add("active");
+            document.querySelectorAll("#main-nav a[data-view]").forEach(a => {
+                a.classList.toggle("active", a.dataset.view === view);
+            });
+            if (updateHash) history.pushState(null, "", "#" + view);
+            window.scrollTo(0, 0);
+        }
+    </script>
 </body>
 </html>
