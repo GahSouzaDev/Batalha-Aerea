@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Batalha Aérea Multiplayer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="img/icone.png">
+<style>
+/* Barra de escudo desativada no HUD por enquanto, mas mantida no DOM
+   (fica mais fácil religar depois do que reconstruir o markup). */
+#bars-wrap .bar-col:nth-child(3) { display: none; }
+
+/* PEDIDO: enquanto o menu principal ou o lobby estiverem na tela (câmera
+   de prévia do avião ativa, ver menu-camera.js), nada de HUD de voo deve
+   aparecer — só o avião girando no fundo (e o próprio card do menu).
+   A classe abaixo é ligada/desligada automaticamente pelo JS. */
+body.menu-preview-active #enemy-labels,
+body.menu-preview-active #crosshair,
+body.menu-preview-active #takeoff-banner,
+body.menu-preview-active #telemetry,
+body.menu-preview-active #compass,
+body.menu-preview-active #bars-wrap,
+body.menu-preview-active #scoreboard,
+body.menu-preview-active #kill-feed,
+body.menu-preview-active #spectator-hud,
+body.menu-preview-active #ability-hud,
+body.menu-preview-active #death-overlay,
+body.menu-preview-active #spectator-tint,
+body.menu-preview-active #spectator-waiting,
+body.menu-preview-active #radar-hud,
+body.menu-preview-active #radar-target-arrow {
+  display: none !important;
+}
+
+/* Evita o navegador tentar rolar/dar zoom na página enquanto o dedo
+   arrasta a tela pra girar o avião no menu (mobile). */
+#canvas-container { touch-action: none; }
+</style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="enemy-labels"></div>
+  <div id="spectator-tint"></div>
+  <div id="spectator-waiting">👁️ Aguardando o fim da partida...</div>
+
+  <div id="crosshair"><div class="crosshair-dot"></div></div>
+  <div id="takeoff-banner">🛫 DECOLE! Combate libera em <span id="takeoff-timer">14</span>s</div>
+
+  <div class="hud" id="telemetry">
+    <div class="row"><span class="label">Avião</span><span class="value" id="val-model">Cessna</span></div>
+    <div class="row"><span class="label">Altitude</span><span class="value" id="val-alt">0.0 m</span></div>
+    <div class="row"><span class="label">Velocidade</span><span class="value" id="val-speed">0 km/h</span></div>
+    <div class="row"><span class="label">Rumo</span><span class="value" id="val-heading">000°</span></div>
+    <div class="row"><span class="label">Vida</span><span class="value" id="val-health">100</span></div>
+    <div class="row"><span class="label">Abates</span><span class="value" id="val-kills">0</span></div>
+    <div class="row"><span class="label">Estado</span><span class="value" id="val-state">VOANDO</span></div>
+  </div>
+
+  <div class="hud" id="compass">
+    <div id="compass-inner">
+      <div id="compass-needle"></div>
+    </div>
+  </div>
+
+  <div id="bars-wrap">
+    <div class="bar-col"><div class="bar-label"><span>ALTITUDE</span><span id="alt-percent">0%</span></div><div class="bar-track"><div class="bar-fill" id="alt-fill"></div></div></div>
+    <div class="bar-col bar-col-health"><div class="bar-label"><span>VIDA</span><span id="health-percent">100%</span></div><div class="bar-track"><div class="bar-fill" id="health-fill"></div></div></div>
+    <div class="bar-col"><div class="bar-label"><span>ESCUDO</span><span id="shield-percent">0%</span></div><div class="bar-track"><div class="bar-fill" id="shield-fill"></div></div></div>
+  </div>
+
+  <div id="scoreboard"><div class="sb-title">🏆 TOP 3</div><div id="sb-list"></div></div>
+  <div id="kill-feed"></div>
+  <div id="spectator-hud">👁️ ESPECTADOR<button id="spectator-change-plane-btn" class="btn-secondary btn-chip" style="display:none;margin-left:10px;">✈️ Trocar de Avião</button></div>
+
+  <div id="radar-hud">
+    <div class="radar-header">
+      <span class="radar-title">RADAR</span>
+      <div class="radar-zoom-controls">
+        <button type="button" id="radar-zoom-in" title="Aproximar (zoom in)">−</button>
+        <span id="radar-range-label">300 m</span>
+        <button type="button" id="radar-zoom-out" title="Afastar (zoom out)">+</button>
+      </div>
+    </div>
+    <canvas id="radar-canvas"></canvas>
+    <div class="radar-legend"><span class="legend-dot legend-enemy"></span>Inimigo<span class="legend-dot legend-ally"></span>Aliado<span class="legend-dot legend-target"></span>Alvo</div>
+  </div>
+
+  <div id="ability-hud">
+    <div class="ability-item"><span class="keycap">Clique</span><span>Tiro</span><span class="cooldown ready" id="missile-cooldown">OK</span></div>
+    <div class="ability-item"><span class="keycap">1</span><span>Bomba</span><span class="cooldown ready" id="bomb-cooldown">OK</span></div>
+    <div class="ability-item"><span class="keycap">2</span><span>Bomba Azul</span><span class="cooldown ready" id="super-cooldown">OK</span></div>
+    <div class="ability-item special"><span class="keycap">3</span><span id="special-name">Especial</span><span class="cooldown ready" id="special-cooldown">OK</span></div>
+  </div>
+
+  <div id="death-overlay"><h1>ABATIDO</h1><p id="death-sub">Você virou espectador</p></div>
+
+  <!-- ========= BOTÃO "VOLTAR AO MENU" (flutuante) =========
+       Só aparece quando o menu/lobby estão recolhidos (só o avião
+       visível na tela) — nesse estado não existe cartão nenhum pra
+       guardar um botão "normal", por isso ele continua fixo/flutuante.
+       Com o cartão aberto, quem cuida de "ver o avião" é o botão que
+       mora dentro do próprio cabeçalho do menu/lobby (ver
+       #menu-view-plane-btn / #lobby-view-plane-btn mais abaixo). -->
+  <button id="menu-return-btn" class="view-plane-btn" style="display:none;">📋 VOLTAR AO MENU</button>
+  <div id="menu-cam-hint">🔄 Arraste a tela pra girar o avião &nbsp;•&nbsp; roda do mouse pra zoom</div>
+
+  <!-- ========= MENU PRINCIPAL ========= -->
+  <div class="overlay" id="main-menu">
+    <div class="overlay-card menu-card">
+      <div class="menu-header-row">
+        <div class="menu-header-left">
+          <div class="setup-group-label">Escolha seu piloto</div>
+          <div class="pilot-carousel">
+            <button type="button" class="carousel-arrow carousel-arrow-left" id="menu-pilot-prev" aria-label="Piloto anterior">‹</button>
+            <div class="pilot-carousel-stage"><div class="pilot-carousel-photo" id="menu-pilot-photo"></div></div>
+            <button type="button" class="carousel-arrow carousel-arrow-right" id="menu-pilot-next" aria-label="Próximo piloto">›</button>
+          </div>
+          <div class="carousel-label" id="menu-pilot-label">Piloto 1</div>
+          <div class="menu-toolbar">
+            <button class="btn-secondary btn-chip" id="btn-tutorial">📖 Tutorial</button>
+            <button class="btn-secondary btn-chip" id="btn-controls-config">🎮 Controles</button>
+          </div>
+        </div>
+        <div class="menu-header-center">
+          <img src="img/logo.png" alt="Batalha Aérea" class="menu-logo-img">
+        </div>
+        <div class="menu-header-right">
+          <button type="button" class="view-plane-btn-inline" id="menu-view-plane-btn">🔭 VER AVIÃO</button>
+        </div>
+      </div>
+
+      <div class="menu-layout">
+        <!-- COLUNA 1: nome + som/controles -->
+        <div class="menu-col menu-col-actions">
+          <div class="setup-group">
+            <div class="setup-group-label">Seu nome</div>
+            <input type="text" class="name-input" id="menu-name" placeholder="Digite seu nome..." maxlength="18" value="Piloto">
+          </div>
+          <div class="setup-group-label" style="margin-top:14px;">Som e Controles</div>
+          <div class="pill-toggle-stack">
+            <div class="plane-style-toggle" id="menu-music-pill">
+              <button type="button" class="plane-style-btn" data-value="off">🔇 Música</button>
+              <button type="button" class="plane-style-btn active" data-value="on">🎵 Música</button>
+            </div>
+            <div class="plane-style-toggle" id="menu-sound-pill">
+              <button type="button" class="plane-style-btn active" data-value="off">🔊 Som</button>
+              <button type="button" class="plane-style-btn" data-value="on">🔇 Mudo</button>
+            </div>
+            <div class="plane-style-toggle" id="menu-mobile-pill">
+              <button type="button" class="plane-style-btn active" data-value="off">🖥️ Teclado</button>
+              <button type="button" class="plane-style-btn" data-value="on">📱 Toque</button>
+            </div>
+          </div>
+          <input type="checkbox" id="menu-lobby-music-toggle" checked style="display:none;">
+          <input type="checkbox" id="menu-mute-toggle" style="display:none;">
+          <input type="checkbox" id="force-mobile-controls" style="display:none;">
+        </div>
+
+        <!-- COLUNA 2: descrição da habilidade especial -->
+        <div class="menu-col menu-col-ability">
+          <div class="setup-group-label">Habilidade Especial</div>
+          <div class="ability-desc-panel">
+            <div class="ability-desc-title" id="menu-special-title">-</div>
+            <div class="ability-desc-text" id="menu-special-desc-full">Escolha um avião ao lado pra ver os detalhes.</div>
+          </div>
+          <div class="ability-power-img" id="menu-power-img"></div>
+          <div class="stat-row"><span class="stat-label">Velocidade</span><div class="stat-bar"><div class="stat-bar-fill" id="menu-stat-speed" style="width:40%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">Manobrabilidade</span><div class="stat-bar"><div class="stat-bar-fill" id="menu-stat-agility" style="width:40%"></div></div></div>
+          <div class="stat-row"><span class="stat-label">Estabilidade</span><div class="stat-bar"><div class="stat-bar-fill" id="menu-stat-stability" style="width:40%"></div></div></div>
+        </div>
+
+        <!-- COLUNA 3: carrossel de aviões -->
+        <div class="menu-col menu-col-carousel">
+          <div class="setup-group-label">Escolha seu avião</div>
+          <div class="plane-style-toggle" id="menu-style-toggle">
+            <button type="button" class="plane-style-btn" data-style="poligonal">🎨 Clássico</button>
+            <button type="button" class="plane-style-btn active" data-style="realista">🛩️ Realista</button>
+          </div>
+          <div class="plane-carousel">
+            <button type="button" class="carousel-arrow carousel-arrow-left" id="menu-carousel-prev" aria-label="Avião anterior">‹</button>
+            <div class="carousel-stage"><div class="carousel-photo" id="menu-carousel-photo"></div></div>
+            <button type="button" class="carousel-arrow carousel-arrow-right" id="menu-carousel-next" aria-label="Próximo avião">›</button>
+          </div>
+          <div class="carousel-label" id="menu-carousel-label">-</div>
+          <div class="pilot-options-row plane-style-options disabled" id="menu-classic-options">
+            <div class="color-picker-field">
+              <label for="menu-color-custom">Cor</label>
+              <input type="color" id="menu-color-custom" value="#00e5ff">
+            </div>
+            <label class="toggle-chip" for="use-original-texture">
+              <input type="checkbox" id="use-original-texture" checked>
+              <span>Textura clássica</span>
+            </label>
+          </div>
+          <input type="checkbox" id="use-realistic-model" checked style="display:none;">
+        </div>
+      </div>
+
+      <div class="menu-actions-row">
+        <button id="btn-play-solo" class="btn-secondary btn-confirm">TREINAR SOZINHO (BOTS)</button>
+        <button id="btn-join-free" class="btn-secondary btn-free">🕊️ SALA LIVRE</button>
+        <button id="btn-create-room" class="btn-secondary btn-primary">CRIAR SALA</button>
+        <button id="btn-list-rooms" class="btn-secondary">LISTAR SALAS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= MODAL CRIAR SALA ========= -->
+  <div class="modal hidden" id="modal-create-room">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-create-close">&times;</button>
+      <div class="overlay-title" style="font-size:20px;">Criar Sala</div>
+      <div class="lobby-grid">
+        <div>
+          <div class="setup-group">
+            <div class="setup-group-label">Sala</div>
+            <div class="modal-field-row">
+              <input type="text" class="room-input" id="create-room-name" placeholder="Nome da sala" value="Esquadrão do Piloto">
+              <input type="password" class="room-input" id="create-room-password" placeholder="Senha (opcional)">
+              <input type="number" class="room-input" id="create-room-max" placeholder="Máx jogadores" value="6" min="2" max="10" style="max-width:140px;">
+            </div>
+          </div>
+          <div class="setup-group">
+            <div class="setup-group-label">Mapa</div>
+            <div class="env-grid" id="menu-env-options"></div>
+          </div>
+        </div>
+        <div>
+          <div class="setup-group">
+            <div class="setup-group-label">Modo de Combate</div>
+            <div class="mode-grid" id="menu-mode-options"></div>
+          </div>
+          <div class="setup-group">
+            <div class="setup-group-label">Seleção de Avião</div>
+            <div class="mode-grid" id="menu-planemode-options"></div>
+            <div class="modal-hint">Livre: cada um escolhe o seu. Sorteio/Votação: 2 jogadores = sorteio; 3+ = vota-se e o mais votado vale pra todo mundo (empate = sorteio).</div>
+          </div>
+        </div>
+        <div class="lobby-span-full">
+          <button id="modal-create-confirm" class="btn-secondary btn-primary btn-block">CRIAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= MODAL LISTAR SALAS ========= -->
+  <div class="modal hidden" id="modal-list-rooms">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-list-close">&times;</button>
+      <div class="overlay-title" style="font-size:18px;">Salas Disponíveis</div>
+      <div id="room-list-container" class="room-list"><div style="text-align:center;color:#7fbfd6;opacity:0.4;padding:20px;font-size:13px;">Carregando...</div></div>
+      <button id="modal-list-refresh" class="btn-secondary btn-block" style="margin-top:10px;">ATUALIZAR</button>
+    </div>
+  </div>
+
+  <!-- ========= MODAL TUTORIAL ========= -->
+  <div class="modal hidden" id="modal-tutorial">
+    <div class="modal-content" style="max-height:80vh;overflow-y:auto;">
+      <button class="modal-close" id="modal-tutorial-close">&times;</button>
+      <div class="overlay-title" style="font-size:18px;">Como Jogar</div>
+      <div style="text-align:left;font-size:13px;line-height:1.6;color:#cfeaff;">
+
+        <p><b>Espaço</b> — Acelerar / ganhar velocidade<br>
+        <b>W</b> — Subir o nariz &nbsp; <b>S</b> — Descer o nariz (e freio no chão)<br>
+        <b>A / D</b> — Rolar e curvar para esquerda/direita<br>
+        <b>Clique esquerdo do mouse</b> — Tiro básico (com rastreamento leve)<br>
+        <b>1</b> — Bomba (dano cheio, recarga longa) &nbsp; <b>2</b> — Bomba de Área Azul (metade do dano, recarga rápida) &nbsp; <b>3</b> — Habilidade especial do seu avião<br>
+        <b>Setas</b> — Olhar ao redor &nbsp; <b>Roda do mouse</b> — Zoom</p>
+
+        <p style="background:rgba(0,229,255,0.08);border-left:3px solid #00e5ff;padding:6px 10px;border-radius:4px;">
+        ⚠️ <b>Exceção — Helicóptero:</b> nesse avião, <b>W</b> vai pra frente e <b>S</b> vai pra trás
+        (em vez de subir/descer o nariz). A altitude depende da <b>potência do motor</b> (Espaço).
+        Veja os detalhes na seção do Helicóptero mais abaixo.</p>
+
+        <p>Você precisa de <b>velocidade mínima</b> pra decolar — acelere antes de tentar subir! Sem sustentação no ar, o avião entra em estol e perde altitude. Bater em prédios e estruturas derruba seu avião (queda temporária). Ao começar a partida, todos têm um tempo de <b>decolagem livre</b> (imunes a dano) antes do combate ser liberado. No <b>Modo Esquadrões</b>, fogo amigo é desligado: você só causa dano aos inimigos.</p>
+
+        <p>O <b>tiro básico</b> (clique/Enter) tem <b>rastreamento leve</b>: o míssil se curva em direção ao inimigo mais próximo dentro de 100m e ângulo de visão estreito. A mira fica <b>vermelha</b> quando um alvo está sendo rastreado.</p>
+
+        <hr style="border-color:rgba(0,229,255,0.2);margin:12px 0;">
+
+        <p style="font-size:14px;"><b>✈️ Aviões e Habilidades (Tecla 3)</b><br>
+        <span style="opacity:0.75;">Cada avião tem seu próprio som de habilidade — com o tempo, dá pra saber quem está usando o quê só de ouvir.</span></p>
+
+        <p><b>🪂 Hélice / Turboélice</b><br>
+        🪁 <b>14-Bis</b> — <i>Hiper Velocidade:</i> acelera progressivamente até <b>20x</b> a velocidade máxima, fica <b>invulnerável</b> e extremamente manobrável por 5s — mais rápido e muito mais ágil que o SR-71 invisível. Não fica invisível: solta um <b>rastro de fogo</b> bem visível atrás. Voa mais baixo que os outros e é um pouco inferior ao Cessna fora da habilidade.<br>
+        🛩️ <b>Cessna 172</b> — <i>Rajada de Bombas:</i> 5 bombas vermelhas menores para frente, 1 por segundo (metade da vida por acerto, precisa de 2 pra matar).<br>
+        🎭 <b>Hilson Bi-Mono</b> — <i>Super Metralhadora:</i> liga uma rajada muito rápida de tiros <b>azuis</b> (mirados pela sua mira) por 5s. Cooldown próprio de só <b>10s</b>, bem menor que o normal.<br>
+        ✈️ <b>ATR Bimotor</b> — <i>Sobrecarga Kamikaze:</i> acelera ao máximo e explode em área após 3s, invulnerável a colisões durante a sobrecarga.<br>
+        🛧 <b>Piper Seneca</b> — <i>Rajada Dupla:</i> solta um par de mísseis retos, um de cada asa, 4 par por segundo (20 disparos em 5s). Mais rápido e manobrável que o ATR.</p>
+
+        <p><b>🚀 Caças a Jato</b><br>
+        🚀 <b>JAS 39 Gripen</b> — <i>Campo de Dano:</i> esfera de dano por 5s e invulnerabilidade total (sem colisão, sem dano de tiros/mísseis/explosões).<br>
+        🎯 <b>A-1A AMX</b> — <i>Míssil Teleguiado Lento:</i> 5 mísseis vermelhos lentos que perseguem o alvo mais próximo só nos primeiros segundos de voo — depois seguem reto. Mesmo dano da Rajada do Cessna.<br>
+        🦅 <b>F-22 Raptor</b> — <i>Impulso Hipersônico:</i> carrega energia por 2s (mais lento e invulnerável), solta uma onda de choque explosiva e é arremessado pra frente em altíssima velocidade por 1s — depois recupera gradualmente.</p>
+
+        <p><b>⚡ Alta Performance</b><br>
+        ⚡ <b>SR-71 Blackbird</b> — <i>Invisibilidade:</i> fica invisível para inimigos por 5s e acelera até 2x a velocidade máxima nesse período.</p>
+
+        <p><b>🛫 Grandes / Comerciais</b><br>
+        ✈️ <b>Airbus A380</b> — <i>Bombardeio:</i> 5 bombas vermelhas em sequência (1/s).<br>
+        🛫 <b>Boeing 737</b> — <i>Rastro Luminoso:</i> solta bolas de luz que ficam <b>paradas no ar</b>. Cada bola dura 5s e <b>explode</b> no final — quem passar perto enquanto ela existe sofre o mesmo dano do Laser do OVNI.<br>
+        🦇 <b>B-2 Spirit</b> — <i>Bombardeio Furtivo:</i> 10 bombas <b>brancas</b> em sequência (1 a cada meio segundo!), caindo 2x mais rápido que as do A380, raio de explosão menor. Um pouco mais rápido e manobrável que o A380.</p>
+
+        <p><b>✨ Especiais</b><br>
+        🚁 <b>Helicóptero</b> — física própria: veja a seção dedicada logo abaixo. <i>Onda de Choque:</i> 5 pulsos de onda de choque (1/s), grandes, grossos e bem visíveis, dano em área em todas as direções, sem explosão de partículas. Precisa de 2 pulsos pra matar.<br>
+        🛸 <b>OVNI</b> — <i>Laser Destruidor:</i> laser contínuo vermelho (dano altíssimo, elimina rapidamente).<br>
+        ✨ <b>X-Wing (T-65/T-70)</b> — <i>Metralhadora Laser:</i> laser <b>azul</b> em rajadas de 10 disparos por segundo (liga e desliga, como uma metralhadora, ao contrário do feixe contínuo do OVNI). O avião mais ágil do jogo, um pouco melhor que o OVNI.</p>
+
+        <hr style="border-color:rgba(0,229,255,0.2);margin:12px 0;">
+
+        <p style="font-size:14px;"><b>🚁 Como pilotar o Helicóptero</b><br>
+        O Helicóptero reaproveita as mesmas teclas dos aviões, com <b>W</b> pra frente e <b>S</b> pra trás.
+        O <b>Espaço</b> controla a <b>potência do motor</b> em 4 faixas:</p>
+        <p>
+        <b>1/4 — Sem sustentação:</b> o helicóptero <b>cai</b> se estiver no ar. <b>W/S não fazem nada</b> (sem deslocamento horizontal).<br>
+        <b>2/4 — Planando (descendo):</b> desce planando (perde altitude aos poucos) e já anda pra frente/trás, mas só a <b>50%</b> da velocidade máxima.<br>
+        <b>3/4 — Planando (subindo):</b> sobe de leve, na mesma taxa em que desce no 2/4, e anda mais rápido que no 2/4.<br>
+        <b>4/4 — Potência total:</b> sobe rápido de verdade, e só aqui o deslocamento pra frente/trás chega no <b>máximo</b>.
+        </p>
+        <p>O giro (A/D) fica sempre disponível, em qualquer faixa de potência, com uma leve inclinação lateral nas curvas. O deslocamento pra frente/trás tem <b>inércia</b>: ao soltar o botão, o helicóptero desliza um pouco antes de parar, em vez de travar na hora.</p>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= MODAL CONTROLES ========= -->
+  <div class="modal hidden" id="modal-controls">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-controls-close">&times;</button>
+      <div class="overlay-title" style="font-size:18px;">Configurar Controles</div>
+      <div class="controls-config" id="controls-config-container"></div>
+      <button id="controls-reset-default" class="btn-secondary" style="width:100%;margin-top:10px;font-size:12px;padding:6px;">Restaurar Padrão</button>
+    </div>
+  </div>
+
+  <!-- ========= LOBBY ========= -->
+  <div class="overlay hidden" id="lobby-overlay">
+    <div class="overlay-card">
+      <!-- CORREÇÃO: logo agora fica exatamente como no menu principal —
+           mesma posição/tamanho, na mesma linha do nome da sala (que
+           entrou pra dentro do header-left, em vez de ficar numa linha
+           separada abaixo) — economiza espaço vertical. -->
+      <div class="menu-header-row">
+        <div class="menu-header-left">
+          <div class="overlay-title" id="lobby-title" style="margin:0;">SALA</div>
+          <div class="overlay-sub" id="lobby-sub">Aguardando...</div>
+          <div id="lobby-room-info" style="font-size:12px;color:#7fbfd6;"></div>
+          <div class="menu-toolbar">
+            <button class="btn-secondary btn-chip" id="lobby-btn-tutorial">📖 Tutorial</button>
+            <button class="btn-secondary btn-chip" id="lobby-btn-controls-config">🎮 Controles</button>
+          </div>
+        </div>
+        <div class="menu-header-center">
+          <img src="img/logo.png" alt="Batalha Aérea" class="menu-logo-img">
+        </div>
+        <div class="menu-header-right">
+          <button type="button" class="view-plane-btn-inline" id="lobby-view-plane-btn">🔭 VER AVIÃO</button>
+          <!-- CORREÇÃO: o chat de texto (ver text-chat.js/ensureChatBox)
+               era uma caixinha flutuante fixa no canto da tela. Agora
+               nasce aqui dentro, embutido no cabeçalho, do lado da logo
+               e abaixo do botão de ver o avião — tem espaço de sobra. -->
+          <div id="lobby-chat-slot"></div>
+        </div>
+      </div>
+
+      <div class="lobby-grid menu-layout">
+        <!-- Participantes: sem nome/piloto aqui (já escolhidos no menu),
+             a lista de jogadores ganha o espaço todo da coluna. Áudio e
+             música/som ficam ABAIXO da lista (não acima), pra lista ser
+             a primeira coisa vista ao entrar na sala. -->
+        <div class="menu-col">
+          <div class="lobby-section-label" id="lobby-list-label">Piloto na sala</div>
+          <div class="lobby-list" id="lobby-list"></div>
+          <div class="setup-group-label" style="margin-top:10px;">Som</div>
+          <div class="pill-toggle-stack" style="margin-bottom:8px;">
+            <div class="plane-style-toggle" id="lobby-music-pill">
+              <button type="button" class="plane-style-btn" data-value="off">🔇 Música</button>
+              <button type="button" class="plane-style-btn active" data-value="on">🎵 Música</button>
+            </div>
+            <div class="plane-style-toggle" id="lobby-sound-pill">
+              <button type="button" class="plane-style-btn active" data-value="off">🔊 Som</button>
+              <button type="button" class="plane-style-btn" data-value="on">🔇 Mudo</button>
+            </div>
+          </div>
+          <button class="btn-secondary btn-chip" id="lobby-audio-btn" style="width:100%;">🎙️ Áudio / Voz</button>
+          <!-- checkboxes reais escondidos, só pra manter a sincronia de
+               música/som com o menu principal (ver syncInputPair em
+               ui-menu.js). -->
+          <input type="checkbox" id="lobby-lobby-music-toggle" checked style="display:none;">
+          <input type="checkbox" id="lobby-mute-toggle" style="display:none;">
+        </div>
+
+        <!-- Habilidade especial / configurações da sala — duas "telas" no
+             mesmo espaço, trocadas pela pílula Avião/Sala. -->
+        <div class="menu-col menu-col-ability">
+          <div class="plane-style-toggle" id="lobby-info-tab-toggle">
+            <button type="button" class="plane-style-btn active" data-tab="aviao">✈️ Avião</button>
+            <button type="button" class="plane-style-btn" data-tab="sala">⚙️ Sala</button>
+          </div>
+
+          <div class="lobby-info-tab" id="lobby-tab-aviao">
+            <div class="lobby-section-label">Habilidade Especial</div>
+            <div class="ability-desc-panel">
+              <div class="ability-desc-title" id="lobby-special-title">-</div>
+              <div class="ability-desc-text" id="lobby-special-desc-full">-</div>
+            </div>
+            <div class="ability-power-img" id="lobby-power-img"></div>
+            <div class="stat-row"><span class="stat-label">Velocidade</span><div class="stat-bar"><div class="stat-bar-fill" id="lobby-stat-speed" style="width:40%"></div></div></div>
+            <div class="stat-row"><span class="stat-label">Manobrabilidade</span><div class="stat-bar"><div class="stat-bar-fill" id="lobby-stat-agility" style="width:40%"></div></div></div>
+            <div class="stat-row"><span class="stat-label">Estabilidade</span><div class="stat-bar"><div class="stat-bar-fill" id="lobby-stat-stability" style="width:40%"></div></div></div>
+            <div id="lobby-plane-mode-note" style="font-size:10px;color:#7fbfd6;margin-top:6px;"></div>
+          </div>
+
+          <div class="lobby-info-tab hidden" id="lobby-tab-sala">
+            <!-- CORREÇÃO: id="lobby-host-settings" continua existindo com a
+                 classe "hidden" própria dela — é ela que o resto do jogo
+                 liga/desliga conforme você é host ou não. A aba só soma
+                 mais uma camada de visibilidade em cima (a troca de aba),
+                 sem mexer nessa lógica. -->
+            <div class="hidden" id="lobby-host-settings">
+              <div class="host-settings-grid">
+                <div>
+                  <div class="setup-group-label">Mapa (host)</div>
+                  <div class="env-grid" id="lobby-env-options"></div>
+                </div>
+                <div>
+                  <div class="setup-group-label">Modo de Combate (host)</div>
+                  <div class="mode-grid" id="lobby-mode-options"></div>
+                </div>
+                <div>
+                  <div class="setup-group-label">Seleção de Avião (host)</div>
+                  <div class="mode-grid" id="lobby-planemode-options"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seu avião: carrossel -->
+        <div class="menu-col menu-col-carousel">
+          <div class="lobby-section-label">Seu avião</div>
+          <div class="plane-style-toggle" id="lobby-style-toggle">
+            <button type="button" class="plane-style-btn" data-style="poligonal">🎨 Clássico</button>
+            <button type="button" class="plane-style-btn active" data-style="realista">🛩️ Realista</button>
+          </div>
+          <div class="plane-carousel">
+            <button type="button" class="carousel-arrow carousel-arrow-left" id="lobby-carousel-prev" aria-label="Avião anterior">‹</button>
+            <div class="carousel-stage"><div class="carousel-photo" id="lobby-carousel-photo"></div></div>
+            <button type="button" class="carousel-arrow carousel-arrow-right" id="lobby-carousel-next" aria-label="Próximo avião">›</button>
+          </div>
+          <div class="carousel-label" id="lobby-carousel-label">-</div>
+          <div class="pilot-options-row plane-style-options disabled" id="lobby-classic-options">
+            <div class="color-picker-field">
+              <label for="lobby-color-custom">Cor</label>
+              <input type="color" id="lobby-color-custom" value="#00e5ff">
+            </div>
+            <label class="toggle-chip" for="lobby-use-original-texture">
+              <input type="checkbox" id="lobby-use-original-texture" checked>
+              <span>Textura clássica</span>
+            </label>
+          </div>
+          <input type="checkbox" id="lobby-use-realistic-model" checked style="display:none;">
+        </div>
+      </div>
+
+      <!-- Botões: SAIR / PRONTO / INICIAR (host) lado a lado, embaixo de
+           tudo — INICIAR só aparece pra quem é dono da sala. -->
+      <div class="menu-actions-row">
+        <button id="lobby-leave-btn" class="btn-secondary btn-danger">SAIR</button>
+        <button id="lobby-ready-btn" class="btn-secondary" style="background:rgba(0,229,255,0.12);color:#00e5ff;">PRONTO</button>
+        <button id="lobby-start-btn" class="btn-secondary btn-primary" style="display:none;">INICIAR</button>
+      </div>
+      <div id="lobby-error" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ========= FIM DE PARTIDA ========= -->
+  <div class="overlay hidden" id="matchend-overlay">
+    <div class="overlay-card">
+      <div class="overlay-title" id="matchend-title">FIM DE PARTIDA</div>
+      <div class="overlay-sub" id="matchend-sub">Voltando para a sala em instantes...</div>
+      <div id="matchend-scoreboard" style="margin-top:6px;text-align:left;"></div>
+    </div>
+  </div>
+
+  <!-- ========= OVERLAY DE RECOMEÇAR ========= -->
+  <div class="overlay hidden" id="restart-overlay">
+    <div class="overlay-card" style="max-width:380px;">
+      <div class="overlay-title" style="font-size:22px;">💥 ABATIDO</div>
+      <div class="overlay-sub">O que deseja fazer?</div>
+      <div style="display:flex;flex-direction:column;gap:12px;align-items:center;margin-top:16px;">
+        <button id="btn-restart" class="btn-secondary" style="width:100%;max-width:240px;background:linear-gradient(135deg,#4cff8b,#2aaf6a);color:#00131a;font-weight:700;">🔁 RECOMEÇAR</button>
+        <button id="btn-restart-menu" class="btn-secondary" style="width:100%;max-width:240px;">🏠 MENU PRINCIPAL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= MODAL TROCAR DE AVIÃO (treino com bots via pausa /
+       sala livre ao morrer) ========= -->
+  <div class="modal hidden" id="modal-switch-plane">
+    <div class="modal-content" style="max-width:420px;">
+      <button class="modal-close" id="modal-switch-plane-close">&times;</button>
+      <div class="overlay-title" style="font-size:18px;">Trocar de Avião</div>
+      <div class="plane-carousel" style="margin-top:12px;">
+        <button type="button" class="carousel-arrow carousel-arrow-left" id="switch-carousel-prev" aria-label="Avião anterior">‹</button>
+        <div class="carousel-stage"><div class="carousel-photo" id="switch-carousel-photo"></div></div>
+        <button type="button" class="carousel-arrow carousel-arrow-right" id="switch-carousel-next" aria-label="Próximo avião">›</button>
+      </div>
+      <div class="carousel-label" id="switch-carousel-label">-</div>
+      <div class="ability-desc-panel" style="margin-top:10px;">
+        <div class="ability-desc-title" id="switch-special-title">-</div>
+        <div class="ability-desc-text" id="switch-special-desc-full">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= SCRIPTS ========= -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script src="js/config.js"></script>
+  <script src="js/scene-setup.js"></script>
+  <script src="js/plane-specs.js"></script>
+  <script src="js/plane-model-realistic.js"></script>
+  <script src="js/environment.js"></script>
+  <script src="js/maps/buildings-classic.js"></script>
+  <script src="js/maps/map-cidade.js"></script>
+  <script src="js/maps/map-deserto.js"></script>
+  <script src="js/maps/map-floresta.js"></script>
+  <script src="js/maps/map-laboratorio.js"></script>
+  <script src="js/weather.js"></script>
+
+  <script src="models/plane-14bis.js"></script>
+  <script src="models/plane-cessna.js"></script>
+  <script src="models/plane-biplano.js"></script>
+  <script src="models/plane-bimotor.js"></script>
+  <script src="models/plane-piper-seneca.js"></script>
+  <script src="models/plane-gripen.js"></script>
+  <script src="models/plane-A-1A-AMX.js"></script>
+  <script src="models/plane-f22.js"></script>
+  <script src="models/plane-sr71.js"></script>
+  <script src="models/plane-ovni.js"></script>
+  <script src="models/plane-a380.js"></script>
+  <script src="models/plane-b737.js"></script>
+  <script src="models/plane-b-2.js"></script>
+  <script src="models/plane-heli.js"></script>
+  <script src="models/plane-X-Wing.js"></script>
+
+  <script src="js/positional-audio.js"></script>
+  <script src="js/vehicle-core.js"></script>
+
+  <script src="js/sound.js"></script>
+  <script src="js/voice-announcer.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/menu-camera.js"></script>
+  <script src="js/mobile-controls.js"></script>
+  <script src="js/gamepad.js"></script>
+
+  <script src="js/abilities.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/enemies-bots.js"></script>
+
+  <script src="js/loading-screen.js"></script>
+  <script src="js/voice-chat.js"></script>
+  <script src="js/text-chat.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/scoreboard.js"></script>
+
+  <script src="js/player-lifecycle.js"></script>
+  <script src="js/physics.js"></script>
+
+  <script src="js/hud.js"></script>
+  <script src="js/radar.js"></script>
+  <script src="js/ui-menu.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
