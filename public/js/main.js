@@ -24,7 +24,10 @@ if (renderer && renderer.domElement) {
 // anunciando, o clima continuava mudando, e o motor do avião (que é
 // atualizado dentro de updateFlight) continuava tocando o som dele.
 // Agora existe uma única flag `simulationRunning` que trava tudo isso de
-// uma vez quando o jogo está pausado OU o menu principal está visível.
+// uma vez quando o jogo está pausado, o menu principal está visível OU
+// um REPLAY de abate está sendo tocado (ver replay.js — durante o
+// replay, quem controla a posição dos aviões é o próprio replay, não a
+// física normal, senão os dois iam brigar pelo mesmo frame).
 const mainMenuEl = document.getElementById('main-menu');
 
 function isMainMenuVisible() {
@@ -36,7 +39,8 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   const inMenu = isMainMenuVisible();
-  const simulationRunning = !state.isPaused && !loadingActive && !inMenu;
+  const inReplay = (typeof isReplayActive === 'function') && isReplayActive();
+  const simulationRunning = !state.isPaused && !loadingActive && !inMenu && !inReplay;
 
   if (!onlineState.socket && simulationRunning) {
     if (prepTimer > 0) {
@@ -54,7 +58,8 @@ function animate() {
 
   // Congela/descongela o clima e o dirigível junto com o resto da
   // simulação (idempotente — ver weather.js). Isso garante que nenhum
-  // timer de clima/dirigível ande enquanto pausado ou no menu.
+  // timer de clima/dirigível ande enquanto pausado, no menu ou durante
+  // um replay.
   if (typeof setWeatherPaused === 'function') setWeatherPaused(!simulationRunning);
 
   if (simulationRunning) {
@@ -68,22 +73,42 @@ function animate() {
     updateExplosions(dt);
     updateMachineGunBullets(dt);
     if (typeof updateWeather === 'function') updateWeather(dt);
+    // PEDIDO: fumaça de dano (dois níveis, só visual) no seu avião e em
+    // todos os remotos — roda toda vez que a simulação está de pé, igual
+    // ao resto (pausar o jogo também pausa a fumaça).
+    if (typeof updatePlaneSmoke === 'function') updatePlaneSmoke(dt);
+    // PEDIDO: grava um histórico curto de posição/rotação de todo mundo
+    // pra poder montar tanto o replay individual de quem morre (ver
+    // captureKillClip/beginReplayPlayback em player-lifecycle.js, só em
+    // sala criada) quanto o replay do ÚLTIMO abate da partida pra todos
+    // verem antes do placar (ver lastKillClip em multiplayer.js). Grava
+    // sempre, sem custo, mesmo na Sala Livre/treino com bots onde nenhum
+    // dos dois é usado — evita complicar esse loop com checagem de modo.
+    if (typeof recordReplayFrame === 'function') recordReplayFrame(dt);
   }
 
   if (typeof updateGamepad === 'function') updateGamepad(dt);
-  // PEDIDO: enquanto o menu principal ou o lobby estiverem na tela, a
-  // câmera de voo normal dá lugar a uma câmera orbital livre em volta
-  // do avião (ver menu-camera.js), pra poder ver/girar o avião 360°
-  // sem precisar sair da tela de menu.
-  if (typeof isMenuPreviewActive === 'function' && isMenuPreviewActive()) {
+
+  // PEDIDO: enquanto um replay de abate está tocando, ele assume 100% o
+  // controle da câmera (orbitando vítima/atirador) — nem a câmera de
+  // voo normal, nem a câmera de prévia do menu rodam nesse meio-tempo.
+  if (inReplay) {
+    updateReplayPlayback(dt);
+  } else if (typeof isMenuPreviewActive === 'function' && isMenuPreviewActive()) {
     updateMenuPreviewCamera(dt);
   } else {
     updateCamera(dt);
     if (typeof refreshMenuCollapseUI === 'function') refreshMenuCollapseUI();
   }
-  updateHUD();
-  if (typeof updateRadar === 'function') updateRadar(dt);
-  updateScoreboardLoop(dt);
+
+  // PEDIDO: some com o HUD/radar/placar normais enquanto o replay está
+  // na tela (o CSS de body.replay-active já esconde a maior parte, isso
+  // aqui só evita gastar tempo recalculando eles à toa).
+  if (!inReplay) {
+    updateHUD();
+    if (typeof updateRadar === 'function') updateRadar(dt);
+    updateScoreboardLoop(dt);
+  }
 
   renderer.render(scene, camera);
 }

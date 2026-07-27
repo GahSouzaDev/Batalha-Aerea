@@ -44,6 +44,18 @@ function playSound(name) {
     switch (name) {
       case 'shot': beep(1400, 500, 0.05, 'square', 0.06); break;
       case 'hit': beep(700, 200, 0.12, 'sawtooth', 0.08); break;
+
+      // PEDIDO: som novo e diferente especificamente pra "acertei o
+      // inimigo" — separado do 'hit' genérico (que continua tocando pra
+      // acertos em estrutura/cenário). Dois pings agudos e rápidos
+      // subindo, tipo confirmação de acerto de jogo de tiro — dá pra
+      // reconhecer na hora, mesmo voando rápido e sem olhar pro alvo.
+      case 'hit_confirm':
+        beepSequence([
+          [0, 1800, 2600, 0.045, 'sine', 0.09],
+          [55, 2600, 3400, 0.05, 'sine', 0.08],
+        ]);
+        break;
       case 'explosion': beep(180, 40, 0.5, 'sawtooth', 0.15); break;
       case 'death': beep(300, 30, 0.8, 'sawtooth', 0.18); break;
       case 'victory': beep(500, 1200, 0.4, 'triangle', 0.1); break;

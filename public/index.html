@@ -39,6 +39,63 @@ body.menu-preview-active #radar-target-arrow {
 /* Evita o navegador tentar rolar/dar zoom na página enquanto o dedo
    arrasta a tela pra girar o avião no menu (mobile). */
 #canvas-container { touch-action: none; }
+
+/* ================================================================
+   PEDIDO: REPLAY DE ABATE (KILLCAM) — enquanto um replay está tocando
+   (ver replay.js), some com todo o HUD normal e mostra só a cena com a
+   câmera cinematográfica por baixo + a faixa "REPLAY" no topo. A classe
+   body.replay-active é ligada/desligada automaticamente pelo JS
+   (beginReplayPlayback/endReplayPlayback em replay.js).
+   ================================================================ */
+body.replay-active #enemy-labels,
+body.replay-active #crosshair,
+body.replay-active #takeoff-banner,
+body.replay-active #telemetry,
+body.replay-active #compass,
+body.replay-active #bars-wrap,
+body.replay-active #scoreboard,
+body.replay-active #kill-feed,
+body.replay-active #spectator-hud,
+body.replay-active #ability-hud,
+body.replay-active #death-overlay,
+body.replay-active #spectator-tint,
+body.replay-active #spectator-waiting,
+body.replay-active #radar-hud,
+body.replay-active #radar-target-arrow {
+  display: none !important;
+}
+
+#replay-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 26px;
+  pointer-events: none;
+}
+#replay-banner {
+  background: linear-gradient(135deg, rgba(255,42,106,0.9), rgba(255,138,0,0.9));
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  animation: replayPulse 1.1s ease-in-out infinite;
+}
+#replay-sub-label {
+  margin-top: 8px;
+  color: #dfefff;
+  font-size: 12.5px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+@keyframes replayPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.82; transform: scale(1.04); }
+}
 </style>
 </head>
 <body>
@@ -97,6 +154,20 @@ body.menu-preview-active #radar-target-arrow {
   </div>
 
   <div id="death-overlay"><h1>ABATIDO</h1><p id="death-sub">Você virou espectador</p></div>
+
+  <!-- ========= REPLAY DE ABATE (KILLCAM) =========
+       Aparece por cima de tudo enquanto replay.js está tocando um
+       clipe (seu abate, ou o último abate da partida antes do placar
+       final). PEDIDO: só existe em SALA CRIADA (Todos Contra Todos/
+       Esquadrão) — Sala Livre e treino com bots não usam replay (cada
+       morte lá vai direto pro modo espectador, sem travar ninguém no
+       meio do jogo). Ver replay.js: beginReplayPlayback/
+       updateReplayPlayback/endReplayPlayback, e main.js: chamada de
+       updateReplayPlayback() dentro do animate(). -->
+  <div id="replay-overlay" class="hidden">
+    <div id="replay-banner">🎬 REPLAY</div>
+    <div id="replay-sub-label">Repetição do abate</div>
+  </div>
 
   <!-- ========= BOTÃO "VOLTAR AO MENU" (flutuante) =========
        Só aparece quando o menu/lobby estão recolhidos (só o avião
@@ -355,7 +426,7 @@ body.menu-preview-active #radar-target-arrow {
           </div>
         </div>
         <div class="menu-header-center">
-          <img src="img/logo.png" alt="Batalha Aérea" class="menu-logo-img">
+          <img src="img/.png" alt="Batalha Aérea" class="menu-logo-img">
         </div>
         <div class="menu-header-right">
           <button type="button" class="view-plane-btn-inline" id="lobby-view-plane-btn">🔭 VER AVIÃO</button>
@@ -572,11 +643,20 @@ body.menu-preview-active #radar-target-arrow {
   <script src="js/multiplayer.js"></script>
   <script src="js/scoreboard.js"></script>
 
+  <!-- PEDIDO: sistema de replay/killcam — precisa vir antes de
+       player-lifecycle.js (killPlayer chama captureKillClip/
+       beginReplayPlayback, só em sala criada) e de multiplayer.js
+       (socket.on('match-end') chama beginReplayPlayback com o último
+       abate da partida) e de main.js (animate() chama
+       isReplayActive/updateReplayPlayback). -->
+  <script src="js/replay.js"></script>
+
   <script src="js/player-lifecycle.js"></script>
   <script src="js/physics.js"></script>
 
   <script src="js/hud.js"></script>
   <script src="js/radar.js"></script>
+  <script src="js/smoke-trail.js"></script>
   <script src="js/ui-menu.js"></script>
   <script src="js/main.js"></script>
 </body>

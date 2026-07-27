@@ -353,7 +353,7 @@ function updateMissiles(dt) {
           createExplosion(m.position, m.super, false);
           cameraShake(0.5, 0.3);
           flashBot(enemy);
-          playSound('hit');
+          playSound('hit_confirm');
           if (enemy.health <= 0) killBot(enemy);
           hit = true;
           break;
@@ -370,7 +370,7 @@ function updateMissiles(dt) {
             createExplosion(m.position, m.super, false);
             cameraShake(0.5, 0.3);
             flashRemote(id);
-            playSound('hit');
+            playSound('hit_confirm');
             hit = true;
             break;
           }
@@ -567,7 +567,7 @@ function resolveBombDamage(position, isRemoteBomb, damage = BOMB_DMG, radius = B
     if (dist < radius) {
       e.health -= damage;
       flashBot(e);
-      playSound('hit');
+      playSound('hit_confirm');
       if (e.health <= 0) killBot(e);
     }
   });
@@ -579,7 +579,7 @@ function resolveBombDamage(position, isRemoteBomb, damage = BOMB_DMG, radius = B
       if (dist < radius) {
         onlineState.socket.emit('hit', { targetId: id, weaponType });
         flashRemote(id);
-        playSound('hit');
+        playSound('hit_confirm');
       }
     });
   }
@@ -920,7 +920,7 @@ function updateMachineGunBullets(dt) {
         createExplosion(b.position, false, false, explColor);
         cameraShake(0.2, 0.1);
         flashBot(bot);
-        playSound('hit');
+        playSound('hit_confirm');
         if (bot.health <= 0) killBot(bot);
         hit = true;
         break;
@@ -935,7 +935,7 @@ function updateMachineGunBullets(dt) {
           createExplosion(b.position, false, false, explColor);
           cameraShake(0.2, 0.1);
           flashRemote(id);
-          playSound('hit');
+          playSound('hit_confirm');
           hit = true;
           break;
         }

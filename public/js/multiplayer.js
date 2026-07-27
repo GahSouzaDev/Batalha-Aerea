@@ -22,7 +22,7 @@ function leaveOnlineIfNeeded() {
   onlineState.active = false;
   onlineState.isFreeRoom = false;
   lastKnownRoomState = null;
-  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); });
+  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); });
   remotePlayers.clear();
   document.getElementById('lobby-overlay').classList.add('hidden');
   document.getElementById('matchend-overlay').classList.add('hidden');
@@ -305,7 +305,24 @@ function bindCommonSocketHandlers(socket) {
   });
 
   socket.on('player-killed', (data) => {
-    if (data.id === onlineState.myId) { killPlayer(); playSound('death'); }
+    // PEDIDO: guarda o clipe desse abate (vítima + atirador) pra poder
+    // tocar como "replay do último abate" antes do placar final, caso
+    // a partida termine logo em seguida (ver socket.on('match-end')
+    // mais abaixo). Isso roda pra QUALQUER abate da sala, não só o seu —
+    // o mais recente sempre substitui o anterior.
+    //
+    // PEDIDO: sistema de replay é exclusivo de sala criada (Todos Contra
+    // Todos/Esquadrão) — a Sala Livre nunca dispara 'match-end' (ver
+    // checkMatchEnd/room.isFreeRoom no server.js), então nem faz sentido
+    // gastar tempo capturando/guardando esse clipe ali. Sem essa guarda,
+    // toda morte na Sala Livre (que é bem mais frequente que numa sala
+    // fechada) ficava clonando o buffer de replay inteiro à toa.
+    if (!onlineState.isFreeRoom && typeof captureKillClip === 'function') {
+      const clip = captureKillClip(data.id, data.killerId);
+      if (clip) lastKillClip = clip;
+    }
+
+    if (data.id === onlineState.myId) { killPlayer(false, data.killerId); playSound('death'); }
     else {
       const rp = remotePlayers.get(data.id);
       if (rp) { rp.alive = false; createExplosion(rp.mesh.position.clone(), true); detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.el.style.display = 'none'; }
@@ -496,15 +513,34 @@ function bindCommonSocketHandlers(socket) {
   });
 
   socket.on('match-end', (data) => {
-    playSound('victory');
-    showMatchEnd(data);
-    matchEnded = true;
-    silenceAllEngines();
+    // PEDIDO: antes do placar final aparecer, mostra um replay rápido
+    // (uns 2-3s) do ÚLTIMO abate da partida — só assim depois toca a
+    // vitória/derrota e o placar (mesma função showMatchEnd de sempre).
+    // Se não tiver clipe guardado (ex: partida acabou sem nenhum abate
+    // no fim, ou o buffer não tinha histórico suficiente), mostra o
+    // placar direto, sem travar nada.
+    const proceedToMatchEnd = () => {
+      playSound('victory');
+      showMatchEnd(data);
+      matchEnded = true;
+      silenceAllEngines();
+    };
+    if (lastKillClip && typeof beginReplayPlayback === 'function') {
+      const clipToPlay = lastKillClip;
+      lastKillClip = null;
+      const onClimax = (focusPos) => {
+        if (focusPos) createExplosion(focusPos.clone(), true, false);
+      };
+      beginReplayPlayback(clipToPlay, '🏁 Replay do último abate', proceedToMatchEnd, onClimax);
+    } else {
+      proceedToMatchEnd();
+    }
   });
 
   socket.on('room-reset', () => {
     matchEnded = false;
     lastKnownRoomState = null;
+    lastKillClip = null;
     document.getElementById('matchend-overlay').classList.add('hidden');
     document.getElementById('lobby-overlay').classList.remove('hidden');
     onlineState.ready = false;
@@ -524,7 +560,7 @@ function bindCommonSocketHandlers(socket) {
 
   socket.on('player-left', (data) => {
     const rp = remotePlayers.get(data.id);
-    if (rp) { if (rp._abilityTimeout) clearTimeout(rp._abilityTimeout); if (rp._trailInterval) clearInterval(rp._trailInterval); detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); remotePlayers.delete(data.id); }
+    if (rp) { if (rp._abilityTimeout) clearTimeout(rp._abilityTimeout); if (rp._trailInterval) clearInterval(rp._trailInterval); detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); remotePlayers.delete(data.id); }
     updateScoreboardFromRoom(null);
   });
 
@@ -715,9 +751,14 @@ function renderLobby(data) {
 function beginOnlineMatch(data) {
   showLoadingScreen(() => { if (onlineState.socket) onlineState.socket.emit('client-loaded'); });
 
+  // PEDIDO: começo de partida/Sala Livre nova — limpa o histórico de
+  // replay da sessão anterior (evita montar um "replay" com posições de
+  // uma partida que já acabou).
+  if (typeof resetReplayBuffer === 'function') resetReplayBuffer();
+
   matchEnded = false;
   revivePlayer();
-  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); });
+  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); });
   remotePlayers.clear();
   botsEnabled = false;
   enemyBots.forEach(e => { if (e.mesh.parent) scene.remove(e.mesh); if (e.label) e.label.remove(); });
@@ -726,6 +767,12 @@ function beginOnlineMatch(data) {
   currentMode = data.mode || 'ffa';
   currentPlaneMode = data.planeMode || 'livre';
   buildEnvironment(data.map || 'cidade');
+  // PEDIDO: sincronizar o clima da sala imediatamente — sem isso, quem
+  // entra numa partida/Sala Livre já em andamento só veria o clima
+  // atual (chuva, dirigível voando etc.) no próximo evento sorteado
+  // pelo servidor, minutos depois, em vez de já entrar vendo a mesma
+  // coisa que os outros jogadores da sala.
+  if (data.weather && typeof applyWeatherSnapshot === 'function') applyWeatherSnapshot(data.weather);
   combatEnabled = false;
   prepTimer = 0;
 

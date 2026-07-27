@@ -843,7 +843,7 @@ function updateLightTrail(dt) {
       if (bot.mesh.position.distanceTo(b737TrailOrbs[i].mesh.position) < B737_TRAIL_HIT_RADIUS) {
         bot.health -= B737_TRAIL_DMG_PER_SEC * B737_TRAIL_HIT_COOLDOWN;
         flashBot(bot);
-        playSound('hit');
+        playSound('hit_confirm');
         b737TrailHitCooldowns.set(key, B737_TRAIL_HIT_COOLDOWN);
         if (bot.health <= 0) killBot(bot);
         break;
@@ -860,6 +860,7 @@ function updateLightTrail(dt) {
         if (rp.mesh.position.distanceTo(b737TrailOrbs[i].mesh.position) < B737_TRAIL_HIT_RADIUS) {
           onlineState.socket.emit('hit', { targetId: id, weaponType: 'light-trail' });
           flashRemote(id);
+          playSound('hit_confirm');
           b737TrailHitCooldowns.set(key, B737_TRAIL_HIT_COOLDOWN);
           break;
         }
@@ -1108,7 +1109,7 @@ function updateSpecial(dt) {
           fieldHitCooldowns.set(key, FIELD_HIT_COOLDOWN);
           createExplosion(bot.mesh.position.clone(), false, false, 0xff0000);
           flashBot(bot);
-          playSound('hit');
+          playSound('hit_confirm');
           if (bot.health <= 0) killBot(bot);
         }
       });

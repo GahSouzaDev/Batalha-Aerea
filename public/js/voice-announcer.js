@@ -98,7 +98,7 @@ function _processAnnouncerQueue() {
   utter.lang = (voiceAnnouncerVoice && voiceAnnouncerVoice.lang) || 'pt-BR';
   utter.rate = 1.05;
   utter.pitch = 1.0;
-  utter.volume = 1.0;
+  utter.volume = 0.65;
   const done = () => { voiceAnnouncerSpeaking = false; _processAnnouncerQueue(); };
   utter.onend = done;
   utter.onerror = done;

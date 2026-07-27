@@ -16,6 +16,12 @@
 //      alocada) — agora viram InstancedMesh (1 geometria + 1 material,
 //      N instâncias), que é ordens de magnitude mais barato de montar
 //      e de desenhar.
+//
+//  NOVIDADES:
+//   - As pirâmides agora usam a textura externa "img/textura-piram.png"
+//     (carregada via THREE.TextureLoader).
+//   - A iluminação geral foi reduzida (lightIntensity = 0.65) para um
+//     clima mais suave, menos ofuscante.
 // ================================================================
 
 // ---- textura de areia: gerada uma única vez e cacheada ----
@@ -49,6 +55,66 @@ function _buildSandTexture() {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(80, 80);
   _desertSandTextureCache = tex;
+  return tex;
+}
+
+// ---- carregador de textura para as pirâmides (imagem externa) ----
+let _pyramidTextureLoader = null;
+let _pyramidTexture = null;
+let _pyramidTextureLoaded = false;
+const _pyramidTextureCallbacks = [];
+
+function _loadPyramidTexture(callback) {
+  if (_pyramidTextureLoaded) {
+    callback(_pyramidTexture);
+    return;
+  }
+  if (_pyramidTextureLoader === null) {
+    _pyramidTextureLoader = new THREE.TextureLoader();
+    _pyramidTextureLoader.load(
+      'img/textura-piram.png',
+      (tex) => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        _pyramidTexture = tex;
+        _pyramidTextureLoaded = true;
+        // Dispara todos os callbacks pendentes
+        _pyramidTextureCallbacks.forEach(cb => cb(tex));
+        _pyramidTextureCallbacks.length = 0;
+      },
+      undefined,
+      (err) => {
+        console.warn('Erro ao carregar textura das pirâmides, usando fallback procedural.', err);
+        // Fallback: gera uma textura procedural simples (opcional)
+        const fallbackTex = _buildFallbackPyramidTexture();
+        _pyramidTexture = fallbackTex;
+        _pyramidTextureLoaded = true;
+        _pyramidTextureCallbacks.forEach(cb => cb(fallbackTex));
+        _pyramidTextureCallbacks.length = 0;
+      }
+    );
+  }
+  _pyramidTextureCallbacks.push(callback);
+}
+
+// Fallback procedural (caso a imagem não seja encontrada)
+function _buildFallbackPyramidTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#cdb27a';
+  ctx.fillRect(0, 0, size, size);
+  const block = 32;
+  ctx.strokeStyle = '#a0885a';
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= size; x += block) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+  }
+  for (let y = 0; y <= size; y += block) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   return tex;
 }
 
@@ -93,16 +159,30 @@ function buildMapDeserto(group) {
   group.userData.skyColor = 0xe8d9a8;
   group.userData.fogNear = 150;
   group.userData.fogFar = 850;
+  // Iluminação menos intensa (o motor deve ler este valor)
+  group.userData.lightIntensity = 0.65;
 
   // ===== PIRÂMIDES =====
   // Acumula todas as pedrinhas de erosão das 3 pirâmides num único
   // InstancedMesh (em vez de 14 meshes separados POR pirâmide).
   const erosionInstances = []; // { x, y, z, s, rotY }
 
+  // Lista de materiais das pirâmides para aplicar a textura quando carregar
+  const pyramidMaterials = [];
+
   function createPyramid(x, z, baseSize, height, tint) {
     const g = new THREE.Group();
 
-    const stoneMat = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.95, metalness: 0.02, flatShading: true });
+    // Material com textura que será carregada assincronamente
+    // Inicialmente sem textura (ou com cor sólida)
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: tint,
+      roughness: 0.95,
+      metalness: 0.02,
+      flatShading: true
+    });
+    pyramidMaterials.push(stoneMat);
+
     // radialSegments=4 + rotationY 45° -> pirâmide de base quadrada de
     // frente, igual às do Egito (não um cone redondo).
     const pyramidGeo = new THREE.ConeGeometry(baseSize / Math.SQRT2, height, 4, 1);
@@ -113,9 +193,7 @@ function buildMapDeserto(group) {
     mesh.receiveShadow = true;
     g.add(mesh);
 
-    // Leve variação de erosão (blocos salientes na base, cosmético) —
-    // só empilha os dados aqui; o InstancedMesh é montado depois de
-    // todas as pirâmides serem criadas (ver fim da função).
+    // Leve variação de erosão (blocos salientes na base, cosmético)
     for (let i = 0; i < 14; i++) {
       const s = baseSize * (0.02 + Math.random() * 0.025);
       const angle = Math.random() * Math.PI * 2;
@@ -135,7 +213,6 @@ function buildMapDeserto(group) {
     for (let i = 0; i < tiers; i++) {
       const t0 = i / tiers, t1 = (i + 1) / tiers;
       const y0 = height * t0, y1 = height * t1;
-      // afunila linearmente até quase zero no topo, igual à pirâmide
       const half0 = halfBase * (1 - t0) * 0.98;
       const half1 = halfBase * (1 - t1) * 0.98;
       const halfTier = Math.max(half0, half1, 0.6);
@@ -147,15 +224,26 @@ function buildMapDeserto(group) {
     return g;
   }
 
-  // Disposição triangular estilo Gizé: uma pirâmide grande + duas
-  // menores, formando um triângulo bem espaçado (dá pra voar entre elas).
+  // Disposição triangular estilo Gizé
   createPyramid(0, -260, 220, 150, 0xcdb27a);      // Quéops (a maior)
   createPyramid(-190, -60, 175, 120, 0xc7a86e);    // Quéfren
   createPyramid(150, -70, 140, 95, 0xd1b884);      // Miquerinos
 
-  // Monta o InstancedMesh das pedras de erosão (cor média entre os 3
-  // tons das pirâmides — é só decoração de base, não precisa ser exata
-  // por pirâmide, e economiza ter que separar por material).
+  // ---- Carrega a textura externa e aplica a todos os materiais ----
+  _loadPyramidTexture((texture) => {
+    // Ajusta a repetição para cada pirâmide (opcional)
+    // Como todas usam a mesma textura, definimos repeat de forma fixa
+    // ou podemos calcular baseado no tamanho médio
+    const baseRepeat = 4; // fator de repetição
+    texture.repeat.set(baseRepeat, baseRepeat);
+    pyramidMaterials.forEach(mat => {
+      mat.map = texture;
+      mat.color.set(0xffffff); // cor neutra para exibir a textura
+      mat.needsUpdate = true;
+    });
+  });
+
+  // Monta o InstancedMesh das pedras de erosão
   if (erosionInstances.length) {
     const erosionMat = new THREE.MeshStandardMaterial({ color: 0xc9ac79, roughness: 1.0 });
     const erosionMesh = new THREE.InstancedMesh(_DESERT_EROSION_ROCK_GEO, erosionMat, erosionInstances.length);
@@ -170,16 +258,14 @@ function buildMapDeserto(group) {
     group.add(erosionMesh);
   }
 
-  // Algumas pedras soltas espalhadas (só decoração, sem colisão) pra
-  // não deixar o deserto vazio demais, sem virar "vegetação" — também
-  // um único InstancedMesh em vez de 40 meshes separados.
+  // Pedras soltas espalhadas (InstancedMesh)
   const looseCount = 40;
   const looseMesh = new THREE.InstancedMesh(_DESERT_LOOSE_ROCK_GEO, _looseRockMaterial(), looseCount);
   let placed = 0;
   for (let i = 0; i < looseCount; i++) {
     const rx = (Math.random() - 0.5) * 1000;
     const rz = (Math.random() - 0.5) * 1000;
-    if (Math.hypot(rx, rz + 150) < 260) continue; // não nasce dentro das pirâmides
+    if (Math.hypot(rx, rz + 150) < 260) continue;
     const s = 1 + Math.random() * 3;
     _pos.set(rx, s * 0.4, rz);
     _quat.setFromEuler(new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI));

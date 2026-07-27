@@ -88,7 +88,7 @@ function collectRadarContacts() {
   const fwdX = -sinY, fwdZ = -cosY;
   const rightX = cosY, rightZ = -sinY;
 
-  function pushContact(id, pos, isAlly, name) {
+  function pushContact(id, pos, isAlly, name, isBlimp) {
     const dx = pos.x - myPos.x;
     const dz = pos.z - myPos.z;
     const dist = Math.hypot(dx, dz);
@@ -97,7 +97,7 @@ function collectRadarContacts() {
     const rz = dx * fwdX + dz * fwdZ;      // + = à frente do nariz
     list.push({
       id, name: name || (isAlly ? 'Aliado' : 'Inimigo'),
-      isAlly, dist, altDiff: pos.y - myPos.y,
+      isAlly, isBlimp: !!isBlimp, dist, altDiff: pos.y - myPos.y,
       relX: rx, relZ: rz,
       worldPos: pos,
     });
@@ -116,6 +116,16 @@ function collectRadarContacts() {
       pushContact(id, rp.mesh.position, isAlly, rp.label ? rp.label.nameEl.textContent : null);
     });
   }
+
+  // PEDIDO: o dirigível também aparece no radar (pra todo mundo, sala
+  // inteira ou solo) — não é aliado nem inimigo "de verdade", mas
+  // precisa alertar do mesmo jeito que um contato normal (o beep de
+  // "entrou no alcance" já dispara pra ele, já que isAlly=false).
+  if (typeof getBlimpRadarContact === 'function') {
+    const b = getBlimpRadarContact();
+    if (b) pushContact('blimp', b.position, false, 'Dirigível', true);
+  }
+
   return list;
 }
 
@@ -234,7 +244,7 @@ function drawRadar(contacts, range) {
     c.px = px; c.py = py;
 
     const isSelected = c.id === radarSelectedId;
-    const color = c.isAlly ? '#3aa0ff' : '#ff3b3b';
+    const color = c.isBlimp ? '#ffaa33' : (c.isAlly ? '#3aa0ff' : '#ff3b3b');
 
     if (isSelected) {
       const pulse = 5 + Math.sin(performance.now() / 140) * 2;
