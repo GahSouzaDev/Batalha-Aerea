@@ -73,7 +73,7 @@ const PLANE_SPECS = {
     // menos ágil de giro, e voa BEM mais baixo (maxAltitude reduzido de
     // propósito) — mas ganha uma habilidade de altíssima velocidade.
     label: '14-Bis',
-    maxSpeed: 0.35,
+    maxSpeed: 0.5,
     acceleration: 0.00035,
     friction: 0.0005,
     gravity: 0.22,
