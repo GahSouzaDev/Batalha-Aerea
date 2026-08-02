@@ -165,7 +165,14 @@ function createMobileControls() {
       if (t.identifier !== lookTouchId) continue;
       const dx = t.clientX - lastLookX, dy = t.clientY - lastLookY;
       lastLookX = t.clientX; lastLookY = t.clientY;
-      if (!state.isPaused && !state.isSpectator) {
+      if (state.isPaused) { /* nada */ }
+      // PEDIDO: no modo espectador, o dedo arrasta a câmera LIVRE (ver
+      // camera.js/updateSpectatorFreeCam), igual ao mouse no desktop —
+      // e o analógico esquerdo (KeyW/A/S/D simulado acima) já move essa
+      // câmera pra qualquer direção.
+      else if (state.isSpectator) {
+        addSpectatorMouseDelta(dx * 1.3, dy * 1.3);
+      } else {
         cam.yaw -= dx * 0.0042;
         cam.pitch -= dy * 0.0042;
       }

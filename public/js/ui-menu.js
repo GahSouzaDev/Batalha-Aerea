@@ -61,12 +61,23 @@ function bindPlaneStyleToggle(prefix) {
 // Sincroniza um par de inputs (menu <-> lobby) nos dois sentidos, sem loop
 // infinito, pra poder trocar cor/textura em qualquer uma das duas telas e
 // ver refletido na outra (e no avião de verdade, via rebuildVehicle).
-// CORREÇÃO: agora dispara o evento 'change' para atualizar as pílulas visuais.
+//
+// CORREÇÃO CRÍTICA (RangeError: Maximum call stack size exceeded): o
+// listener de 'change' de `a` atualizava `b` e DISPARAVA um evento
+// 'change' em `b` — o que acionava o listener de `b`, que atualizava
+// `a` e disparava 'change' em `a` de novo — e assim iam se chamando um
+// ao outro pra sempre (loop infinito síncrono), estourando a pilha de
+// chamadas na hora que qualquer um dos dois inputs mudava (ex: mover um
+// slider). Agora existe uma trava simples (`syncing`) que impede um
+// lado de reagir a uma mudança que ELE MESMO causou no outro — o efeito
+// visual (pílulas, avião reconstruído etc.) continua idêntico, só que
+// sem o loop.
 function syncInputPair(idA, idB, isCheckbox, storageKey) {
   const a = document.getElementById(idA), b = document.getElementById(idB);
   if (!a || !b) return;
   const prop = isCheckbox ? 'checked' : 'value';
-  
+  let syncing = false;
+
   // Restaura do localStorage se fornecido
   if (storageKey) {
     const saved = localStorage.getItem(storageKey);
@@ -76,27 +87,24 @@ function syncInputPair(idA, idB, isCheckbox, storageKey) {
     }
   }
 
-  function updateBoth(val) {
-    a[prop] = val;
-    b[prop] = val;
-    if (storageKey) localStorage.setItem(storageKey, String(val));
-    a.dispatchEvent(new Event('change'));
-    b.dispatchEvent(new Event('change'));
-    if (typeof rebuildVehicle === 'function') { try { rebuildVehicle(); } catch (e) {} }
-  }
-
   a.addEventListener('change', () => {
+    if (syncing) return;
+    syncing = true;
     const val = a[prop];
     b[prop] = val;
     if (storageKey) localStorage.setItem(storageKey, String(val));
     b.dispatchEvent(new Event('change'));
+    syncing = false;
     if (typeof rebuildVehicle === 'function') { try { rebuildVehicle(); } catch (e) {} }
   });
   b.addEventListener('change', () => {
+    if (syncing) return;
+    syncing = true;
     const val = b[prop];
     a[prop] = val;
     if (storageKey) localStorage.setItem(storageKey, String(val));
     a.dispatchEvent(new Event('change'));
+    syncing = false;
     if (typeof rebuildVehicle === 'function') { try { rebuildVehicle(); } catch (e) {} }
   });
 }
@@ -425,6 +433,31 @@ document.addEventListener('DOMContentLoaded', function() {
   // e a aba de configurações (mapa/modo/etc, ver bindHostSettingsGrid
   // logo abaixo) ficava escondida pra sempre, mesmo sendo o host.
   bindLobbyInfoTabToggle();
+
+  // ================================================================
+  //  PEDIDO: botão "🌐 SITE" (menu e lobby) — abre a página de
+  //  apresentação do jogo numa aba nova, sem sair da partida/menu atual.
+  // ================================================================
+  const BATALHA_SITE_URL = 'https://batalhaaerea.gahsouza.com.br/';
+  ['menu-site-btn', 'lobby-site-btn'].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener('click', () => window.open(BATALHA_SITE_URL, '_blank', 'noopener'));
+  });
+
+  // PEDIDO: botão "⚙️" de configurações no menu/lobby — mesma janela de
+  // áudio/chat de voz que já existe na pausa do jogo (voice-chat.js),
+  // só que agora acessível ANTES de entrar em combate também.
+  ['menu-settings-btn', 'lobby-settings-btn'].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener('click', () => {
+      if (typeof openAudioSettingsModal === 'function') openAudioSettingsModal();
+    });
+  });
+
+  // PEDIDO: botão de pausa visível no DESKTOP (equivalente ao ⏸ redondo
+  // que já existe no mobile) — antes só dava pra pausar apertando Esc.
+  const desktopPauseBtn = document.getElementById('desktop-pause-btn');
+  if (desktopPauseBtn) desktopPauseBtn.addEventListener('click', () => { if (typeof togglePause === 'function') togglePause(); });
 
   // CORREÇÃO: o host não conseguia alterar mapa/modo/modo de avião na
   // sala. Os botões de #lobby-env-options, #lobby-mode-options e

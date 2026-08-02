@@ -109,7 +109,10 @@ renderer.domElement.addEventListener('mousedown', (e) => {
 renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
 window.addEventListener('mousemove', (e) => {
-  if (state.isPaused || state.isSpectator) return;
+  if (state.isPaused) return;
+  // PEDIDO: no modo espectador (morto), o mouse controla a câmera LIVRE
+  // (ver camera.js/updateSpectatorFreeCam) em vez da câmera de voo normal.
+  if (state.isSpectator) { addSpectatorMouseDelta(e.movementX, e.movementY); return; }
   cam.yaw -= e.movementX * 0.0032;
   cam.pitch -= e.movementY * 0.0032;
 });

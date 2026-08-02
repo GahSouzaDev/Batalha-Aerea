@@ -7,6 +7,14 @@ function spawnEnemyBots() {
     detachEngineSound(b.parts);
     if (b.mesh.parent) scene.remove(b.mesh);
     if (b.label) b.label.remove();
+    // CORREÇÃO: mesmo vazamento do avião local (ver rebuildVehicle em
+    // vehicle-core.js) — o disco de sombra do bot é adicionado direto na
+    // scene (irmão do mesh, não filho), então remover só `b.mesh` não
+    // tirava a sombra dele de cena nenhuma. Cada troca de mapa/reinício
+    // deixava as sombras antigas dos bots "fantasmas" pra sempre.
+    if (b.parts && b.parts.shadow && b.parts.shadow.parent) {
+      b.parts.shadow.parent.remove(b.parts.shadow);
+    }
   });
   enemyBots = [];
   if (!botsEnabled) return;

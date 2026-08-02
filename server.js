@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -12,6 +13,13 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000
 });
+// PEDIDO: sistema de login/cadastro (ver auth.js — mesmo esquema de
+// sqlite3 + bcryptjs + jsonwebtoken já usado no FluxPRO). Precisa do
+// express.json() pra conseguir ler o corpo JSON das requisições de
+// login/cadastro (POST /api/auth/register, /api/auth/login,
+// GET /api/auth/me).
+app.use(express.json());
+require("./auth").mount(app);
 app.use(express.static(path.join(__dirname, "public")));
 
 // ===== DADOS =====
@@ -52,6 +60,21 @@ const DAMAGE = {
   'biplano-mg': 34,            // super metralhadora do Hilson Bi-Mono
   'xwing-laser': 20,           // metralhadora laser do X-Wing (10 tiros/s)
   'heli-shockwave': 50,        // pulso de onda de choque (2 pulsos matam)
+  // CORREÇÃO CRÍTICA: faltava a entrada 'crash' aqui. O cliente
+  // (physics.js/triggerExplosiveCrash) já mata na hora localmente numa
+  // colisão estrutural e manda `onlineState.socket.emit('hit', {
+  // targetId: onlineState.myId, weaponType: 'crash' })` pro servidor —
+  // mas como 'crash' não existia nesta tabela, `DAMAGE[d.weaponType] ||
+  // DAMAGE.basic` caía no fallback 'basic' (50 de dano). Em salas
+  // online (server-autoritativo), o snapshot seguinte sobrescrevia
+  // `state.health` do cliente (que estava 0) com os 50 de vida
+  // calculados pelo SERVIDOR — por isso a vida "voltava" pra metade
+  // depois da colisão, o jogo nunca te dava como abatido de verdade, e
+  // o replay (que já tinha começado no cliente) ficava com o servidor
+  // dizendo que você continuava vivo. Um valor bem alto garante que
+  // qualquer colisão estrutural mate de verdade também no servidor,
+  // batendo com o que já acontece no cliente.
+  crash: 9999,
 };
 const VALID_PLANES = [
   "quatorzebis", "cessna", "biplano", "bimotor", "seneca",
@@ -79,6 +102,169 @@ const FREE_RESPAWN_DELAY = 2800; // tempo abatido até reaparecer sozinho
 const VALID_MAPS = ["cidade", "deserto", "floresta", "laboratorio"];
 const VALID_MODES = ["ffa", "teams"];
 const VALID_PLANE_MODES = ["livre", "sorteio"];
+
+// ================================================================
+//  CLIMA/DIRIGÍVEL — AUTORIDADE DO SERVIDOR (multiplayer)
+// ================================================================
+//  PEDIDO: o clima e o dirigível não podem mais rodar "cada cliente por
+//  conta própria" em multiplayer — o SERVIDOR decide tudo (quando muda,
+//  qual tipo, onde o dirigível nasce) e manda pra sala inteira ver a
+//  mesma coisa ao mesmo tempo (ver weather.js no cliente, que só
+//  interpola visualmente o que chega daqui).
+//
+//  IMPORTANTE: essa tabela precisa ficar em sincronia com
+//  MAP_WEATHER_PROFILES em public/js/maps/map-cidade.js (o servidor não
+//  carrega arquivos do Three.js, então mantemos uma cópia aqui).
+const MAP_WEATHER_PROFILES = {
+  cidade: ["chuva", "neblina", "dirigivel"],
+  deserto: ["tempestade", "dirigivel"],
+  floresta: ["chuva", "neblina", "dirigivel"],
+  laboratorio: [],
+};
+
+// Salas normais (criadas) e Sala Livre usam a MESMA lógica, só com
+// durações diferentes:
+const ATMO_GAP = 35;            // salas normais: 1º evento / intervalo entre eventos
+const ATMO_ACTIVE = 35;         // salas normais: duração do clima ativo
+const ATMO_WARNING_LEAD = 8;
+const ATMO_TRANSITION = 8;
+// PEDIDO: Sala Livre é "viva" e persistente — clima dura bem mais
+// tempo (120s ativo, 240s limpo) do que nas salas normais.
+const FREE_ATMO_GAP = 240;
+const FREE_ATMO_ACTIVE = 120;
+
+// PEDIDO: 1º dirigível 60s após o início. Se for abatido, o próximo
+// demora a METADE do tempo anterior (60 -> 30 -> 15 -> ...), com piso
+// de 5s (só por segurança/performance). Se ele escapar sem ser
+// abatido, o intervalo volta ao padrão de 60s.
+// EXCEÇÃO — Sala Livre: como ela roda pra sempre (nunca "reseta" entre
+// partidas), esse halving faria o intervalo cair pro piso de 5s depois
+// de algumas mortes e travar ali de vez. Por isso lá o intervalo fica
+// SEMPRE fixo em BLIMP_BASE_GAP (60s), abatido ou não (ver
+// socket.on("blimp-killed", ...) mais abaixo).
+const BLIMP_BASE_GAP = 60;
+const BLIMP_MIN_GAP_FLOOR = 5;
+const BLIMP_WARNING_LEAD = 8;
+const BLIMP_SPEED = 16;
+const BLIMP_ALTITUDE_MIN = 65, BLIMP_ALTITUDE_MAX = 95;
+const BLIMP_SPAWN_RADIUS = 650;
+
+function initRoomWeather(room) {
+  const gap = room.isFreeRoom ? FREE_ATMO_GAP : ATMO_GAP;
+  room.weather = {
+    atmo: { type: null, phase: "idle", timer: gap, duration: gap, lastType: null },
+    blimp: { phase: "idle", timer: BLIMP_BASE_GAP, duration: BLIMP_BASE_GAP, alive: false, gap: BLIMP_BASE_GAP, spawn: null },
+  };
+}
+
+function pickAtmoType(options, exclude) {
+  let pool = options;
+  if (exclude && options.length > 1) {
+    const filtered = options.filter(k => k !== exclude);
+    if (filtered.length) pool = filtered;
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Gera os parâmetros de voo do dirigível (linha reta atravessando o
+// mapa) — mandados pro cliente pronto, pra todo mundo desenhar o MESMO
+// dirigível no MESMO lugar (ver _spawnBlimp(spawnData) em weather.js).
+function makeBlimpSpawn() {
+  const angle = Math.random() * Math.PI * 2;
+  const alt = BLIMP_ALTITUDE_MIN + Math.random() * (BLIMP_ALTITUDE_MAX - BLIMP_ALTITUDE_MIN);
+  const start = { x: Math.cos(angle) * BLIMP_SPAWN_RADIUS, y: alt, z: Math.sin(angle) * BLIMP_SPAWN_RADIUS };
+  const end = { x: -start.x, y: alt, z: -start.z };
+  const dx = end.x - start.x, dz = end.z - start.z;
+  const totalDist = Math.sqrt(dx * dx + dz * dz);
+  const dir = { x: dx / totalDist, y: 0, z: dz / totalDist };
+  const flightTime = (totalDist + 40) / BLIMP_SPEED;
+  return { start, dir, speed: BLIMP_SPEED, totalDist, flightTime };
+}
+
+// Estado atual pronto pra mandar pra quem está ENTRANDO agora numa
+// partida/Sala Livre já em andamento (ver 'weather' em match-loading e
+// free-room-enter) — assim o cliente já nasce sincronizado, em vez de
+// esperar o próximo evento aparecer.
+function weatherSnapshot(room) {
+  const w = room.weather;
+  if (!w) return null;
+  return {
+    atmo: { type: w.atmo.type, phase: w.atmo.phase, timer: Math.max(0, w.atmo.timer), duration: w.atmo.duration },
+    blimp: { phase: w.blimp.phase, timer: Math.max(0, w.blimp.timer), duration: w.blimp.duration, spawn: w.blimp.spawn },
+  };
+}
+
+// Roda a máquina de estados do clima/dirigível pra UMA sala. Chamado a
+// cada tick do loop principal (ver setInterval no fim do arquivo), só
+// pra salas com state === "playing" (cobre tanto partidas normais em
+// andamento quanto a Sala Livre, que fica "playing" pra sempre).
+function updateRoomWeather(room, dt) {
+  const w = room.weather;
+  if (!w) return;
+  // PEDIDO: a Sala Livre não tem mais clima dinâmico nem dirigível — é
+  // só um mata-mata simples, sem burocracia. atmo/blimp ficam travados
+  // em "idle" pra sempre (o estado inicial já nasce assim em
+  // initRoomWeather; aqui só garantimos que nunca mude).
+  if (room.isFreeRoom) return;
+  const isFree = room.isFreeRoom;
+  const gapTime = isFree ? FREE_ATMO_GAP : ATMO_GAP;
+  const activeTime = isFree ? FREE_ATMO_ACTIVE : ATMO_ACTIVE;
+  const profile = MAP_WEATHER_PROFILES[room.map] || [];
+  const options = profile.filter(k => k === "chuva" || k === "neblina" || k === "tempestade");
+
+  // ---- clima atmosférico ----
+  const a = w.atmo;
+  if (!options.length) {
+    if (a.phase !== "idle") {
+      a.phase = "idle"; a.type = null; a.timer = gapTime; a.duration = gapTime;
+      io.to(room.id).emit("weather-phase", { type: null, phase: "idle", duration: gapTime });
+    }
+  } else {
+    a.timer -= dt;
+    if (a.timer <= 0) {
+      if (a.phase === "idle") {
+        a.type = pickAtmoType(options, a.lastType);
+        a.lastType = a.type;
+        a.phase = "aviso"; a.timer = ATMO_WARNING_LEAD; a.duration = ATMO_WARNING_LEAD;
+      } else if (a.phase === "aviso") {
+        a.phase = "entrando"; a.timer = ATMO_TRANSITION; a.duration = ATMO_TRANSITION;
+      } else if (a.phase === "entrando") {
+        a.phase = "ativo"; a.timer = activeTime; a.duration = activeTime;
+      } else if (a.phase === "ativo") {
+        a.phase = "saindo"; a.timer = ATMO_TRANSITION; a.duration = ATMO_TRANSITION;
+      } else if (a.phase === "saindo") {
+        a.phase = "idle"; a.type = null; a.timer = gapTime; a.duration = gapTime;
+      }
+      io.to(room.id).emit("weather-phase", { type: a.type, phase: a.phase, duration: a.duration });
+    }
+  }
+
+  // ---- dirigível ----
+  const b = w.blimp;
+  if (!profile.includes("dirigivel")) {
+    if (b.phase !== "idle") {
+      b.phase = "idle"; b.alive = false; b.spawn = null; b.timer = b.gap; b.duration = b.gap;
+      io.to(room.id).emit("blimp-phase", { phase: "idle" });
+    }
+    return;
+  }
+  b.timer -= dt;
+  if (b.timer <= 0) {
+    if (b.phase === "idle") {
+      b.phase = "aviso"; b.timer = BLIMP_WARNING_LEAD; b.duration = BLIMP_WARNING_LEAD;
+      io.to(room.id).emit("blimp-phase", { phase: "aviso", duration: BLIMP_WARNING_LEAD });
+    } else if (b.phase === "aviso") {
+      const spawn = makeBlimpSpawn();
+      b.phase = "voando"; b.alive = true; b.spawn = spawn; b.timer = spawn.flightTime; b.duration = spawn.flightTime;
+      io.to(room.id).emit("blimp-phase", { phase: "voando", duration: spawn.flightTime, spawn });
+    } else if (b.phase === "voando") {
+      // ninguém abateu a tempo — escapou. Volta pro intervalo BASE (não
+      // acelera quem não se envolveu no combate).
+      b.phase = "idle"; b.alive = false; b.spawn = null; b.gap = BLIMP_BASE_GAP; b.timer = b.gap; b.duration = b.gap;
+      io.to(room.id).emit("blimp-phase", { phase: "idle" });
+    }
+  }
+}
 
 function genRoomId() { return (++roomCounter).toString(36).toUpperCase(); }
 
@@ -128,6 +314,7 @@ function createRoom(hostSocket, data) {
     isFreeRoom: false,
   };
   rooms.set(id, room);
+  initRoomWeather(room);
   return room;
 }
 
@@ -145,6 +332,7 @@ function ensureFreeRoom() {
       isFreeRoom: true,
     };
     rooms.set(FREE_ROOM_ID, room);
+    initRoomWeather(room);
   }
   return room;
 }
@@ -250,6 +438,12 @@ function resetRoom(room) {
     p.kills = 0; p.deaths = 0; p.abilityActive = false; p.abilityTimer = 0; p.abilityCooldown = 0;
     p.invisible = false; p.invulnerable = false; p.vote = null; p.fieldCooldowns = new Map();
   });
+  if (room.weather) {
+    room.weather.atmo.phase = "idle"; room.weather.atmo.type = null;
+    room.weather.blimp.phase = "idle"; room.weather.blimp.alive = false; room.weather.blimp.spawn = null;
+    io.to(room.id).emit("weather-phase", { type: null, phase: "idle", duration: 0 });
+    io.to(room.id).emit("blimp-phase", { phase: "idle" });
+  }
   broadcastRoom(room.id);
   io.to(room.id).emit("room-reset");
 }
@@ -322,6 +516,7 @@ function startGame(roomId) {
       id: p.id, name: p.name, color: p.color, planeType: p.planeType,
       team: p.team, position: p.position, yaw: p.yaw, health: p.health,
     })),
+    weather: weatherSnapshot(room),
   });
 
   if (room.loadingTimeout) clearTimeout(room.loadingTimeout);
@@ -339,6 +534,7 @@ function beginPlaying(room) {
   room.state = "playing";
   room.prepTimer = TAKEOFF_GRACE;
   room.combatEnabled = false;
+  initRoomWeather(room); // PEDIDO: clima/dirigível recomeçam do zero a cada partida nova
   broadcastRoom(room.id);
   io.to(room.id).emit("match-begin", { prepTime: TAKEOFF_GRACE });
 }
@@ -365,6 +561,20 @@ function checkFFAEnd(room) {
     return;
   }
   const alive = room.players.filter(p => p.state === "alive");
+  if (room.players.length === 0) return;
+  // CORREÇÃO CRÍTICA: com `room.players.length <= 1` ANTES desta checagem,
+  // um jogador sozinho na sala que morria/colidia nunca via a partida
+  // terminar — o servidor simplesmente saía da função sem nunca mandar
+  // "match-end", travando o jogo pra sempre (sem placar, sem poder ir pra
+  // próxima partida). Agora: se NINGUÉM estiver vivo (mesmo sendo só 1
+  // jogador no total), a partida termina na hora, sem vencedor — dá pra
+  // testar mapas/aviões sozinho normalmente. A regra de "não declarar
+  // vencedor com só 1 jogador" continua valendo, mas só enquanto esse
+  // jogador ainda está vivo (esperando mais gente entrar).
+  if (alive.length === 0) {
+    endMatch(room, "Fim de partida", null);
+    return;
+  }
   if (room.players.length <= 1) return;
   if (alive.length <= 1) {
     const winner = alive[0] || null;
@@ -503,6 +713,7 @@ io.on("connection", (socket) => {
         id: pl.id, name: pl.name, color: pl.color, planeType: pl.planeType,
         team: pl.team, position: pl.position, yaw: pl.yaw, health: pl.health,
       })),
+      weather: weatherSnapshot(room),
     });
   });
 
@@ -639,6 +850,32 @@ io.on("connection", (socket) => {
     applyDamage(room, d.targetId, dmg, socket.id, d.weaponType);
   });
 
+  // PEDIDO: quem entrega o tiro final no dirigível avisa o servidor —
+  // cada cliente só detecta localmente os acertos das SUAS PRÓPRIAS
+  // armas (igual ao resto do jogo), então só quem realmente acertou
+  // chega até aqui. O servidor decide o próximo ciclo e replica a
+  // explosão pro resto da sala (quem acertou já mostrou a explosão
+  // localmente, por isso socket.to ao invés de io.to).
+  //
+  // PEDIDO: o "abate = metade do tempo" só faz sentido numa partida que
+  // TERMINA (bots/sala criada) — na Sala Livre, que roda pra sempre,
+  // isso ia cair pro piso de 5s depois de algumas mortes e travar ali
+  // pro resto da vida da sala. Por isso a Sala Livre usa um intervalo
+  // FIXO (BLIMP_BASE_GAP) sempre, abatido ou não.
+  socket.on("blimp-killed", (d) => {
+    const roomId = sockets.get(socket.id); const room = rooms.get(roomId);
+    if (!room || !room.weather) return;
+    const b = room.weather.blimp;
+    if (b.phase !== "voando" || !b.alive) return;
+    b.alive = false;
+    b.phase = "idle";
+    b.gap = room.isFreeRoom ? BLIMP_BASE_GAP : Math.max(BLIMP_MIN_GAP_FLOOR, b.gap / 2);
+    b.timer = b.gap; b.duration = b.gap;
+    const pos = (d && d.position) || (b.spawn ? b.spawn.start : { x: 0, y: 80, z: 0 });
+    b.spawn = null;
+    socket.to(room.id).emit("blimp-exploded", { position: pos, killerId: socket.id });
+  });
+
   socket.on("ability-trigger", () => {
     const roomId = sockets.get(socket.id); const room = rooms.get(roomId);
     if (!room || room.state !== "playing" || !room.combatEnabled) return;
@@ -727,6 +964,7 @@ setInterval(() => {
   const dt = 50 / 1000;
   for (const [, room] of rooms) {
     if (room.state === "playing") {
+      updateRoomWeather(room, dt);
       if (room.prepTimer > 0) {
         room.prepTimer -= dt;
         if (room.prepTimer <= 0) {

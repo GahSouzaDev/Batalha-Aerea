@@ -34,11 +34,22 @@ function isMainMenuVisible() {
   return !!(mainMenuEl && !mainMenuEl.classList.contains('hidden'));
 }
 
+// PEDIDO: sistema de login (ver auth-client.js) — a tela de "sem login /
+// entrar / criar conta" cobre a tela inteira antes até do menu
+// principal aparecer. Sem essa checagem aqui, `simulationRunning`
+// achava que "não tem menu visível" (o menu principal começa escondido
+// agora, só é revelado depois da escolha) e deixava a física/prepTimer
+// rodando escondida atrás da tela de login.
+function isAuthGateVisible() {
+  const el = document.getElementById('auth-gate-overlay');
+  return !!(el && !el.classList.contains('hidden'));
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  const inMenu = isMainMenuVisible();
+  const inMenu = isMainMenuVisible() || isAuthGateVisible();
   const inReplay = (typeof isReplayActive === 'function') && isReplayActive();
   const simulationRunning = !state.isPaused && !loadingActive && !inMenu && !inReplay;
 
@@ -77,6 +88,9 @@ function animate() {
     // todos os remotos — roda toda vez que a simulação está de pé, igual
     // ao resto (pausar o jogo também pausa a fumaça).
     if (typeof updatePlaneSmoke === 'function') updatePlaneSmoke(dt);
+    // PEDIDO: sombra de cada avião (o seu, bots e remotos) acompanhando
+    // a posição de verdade — ver updatePlaneShadows em vehicle-core.js.
+    if (typeof updatePlaneShadows === 'function') updatePlaneShadows();
     // PEDIDO: grava um histórico curto de posição/rotação de todo mundo
     // pra poder montar tanto o replay individual de quem morre (ver
     // captureKillClip/beginReplayPlayback em player-lifecycle.js, só em
@@ -113,7 +127,11 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-document.getElementById('main-menu').classList.remove('hidden');
+// PEDIDO: o menu principal não aparece mais direto ao carregar a página
+// — primeiro vem a tela de login/cadastro/"sem login" (ver
+// auth-client.js/authInit). É ela quem decide quando revelar o menu
+// (na escolha "sem login", OU depois de login/cadastro bem-sucedido,
+// OU automaticamente se já existir uma sessão válida salva).
 combatEnabled = true;
 prepTimer = 0;
 

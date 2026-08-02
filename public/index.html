@@ -101,6 +101,12 @@ body.replay-active #radar-target-arrow {
 <body>
   <div id="canvas-container"></div>
   <div id="enemy-labels"></div>
+  <!-- PEDIDO: no mobile já existe o botão de pausa (⏸, ver mobile-controls.js)
+       sempre visível durante o voo. No desktop só dava pra pausar apertando
+       Esc — sem nenhum botão clicável equivalente. Este é esse botão pro
+       desktop (some sozinho no menu/lobby/replay via CSS, e no mobile,
+       onde o botão redondo já existe). -->
+  <button id="desktop-pause-btn" title="Pausar / Configurações (Esc)">⚙️</button>
   <div id="spectator-tint"></div>
   <div id="spectator-waiting">👁️ Aguardando o fim da partida...</div>
 
@@ -131,7 +137,7 @@ body.replay-active #radar-target-arrow {
 
   <div id="scoreboard"><div class="sb-title">🏆 TOP 3</div><div id="sb-list"></div></div>
   <div id="kill-feed"></div>
-  <div id="spectator-hud">👁️ ESPECTADOR<button id="spectator-change-plane-btn" class="btn-secondary btn-chip" style="display:none;margin-left:10px;">✈️ Trocar de Avião</button></div>
+  <div id="spectator-hud">👁️ ESPECTADOR — WASD + clique/arraste pra olhar livremente<button id="spectator-change-plane-btn" class="btn-secondary btn-chip" style="display:none;margin-left:10px;">✈️ Trocar de Avião</button></div>
 
   <div id="radar-hud">
     <div class="radar-header">
@@ -179,8 +185,80 @@ body.replay-active #radar-target-arrow {
   <button id="menu-return-btn" class="view-plane-btn" style="display:none;">📋 VOLTAR AO MENU</button>
   <div id="menu-cam-hint">🔄 Arraste a tela pra girar o avião &nbsp;•&nbsp; roda do mouse pra zoom</div>
 
+  <!-- ========= TELA DE LOGIN / CADASTRO / SEM LOGIN =========
+       PEDIDO: primeira coisa que aparece ao abrir o site — escolher
+       entre jogar sem login (comportamento de sempre, sem estresse) ou
+       entrar/criar conta. Fica por cima de tudo, inclusive do menu
+       principal, até o jogador escolher um caminho (ver auth-client.js).
+       Se já existir um token salvo (login anterior), essa tela nem
+       chega a aparecer — o auth-client.js valida o token com o servidor
+       e já libera direto pro menu, logado. -->
+  <div class="overlay" id="auth-gate-overlay">
+    <div class="overlay-card" id="auth-gate-card" style="max-width:420px;">
+
+      <!-- ETAPA 1: escolha inicial -->
+      <div id="auth-step-choice">
+        <img src="img/logo.png" alt="Logo" style="max-width:60%; height:auto; display:block; margin:0 auto 10px auto;">
+        <div class="overlay-title" style="font-size:20px;">Bem-vindo(a)!</div>
+        <div class="overlay-sub">Quer jogar com uma conta ou só entrar direto?</div>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:16px;">
+          <button class="btn-secondary" id="auth-btn-guest" style="width:100%;max-width:280px;background:linear-gradient(135deg,#00e5ff,#0088aa);color:#00131a;font-weight:700;">🎮 Jogar sem login</button>
+          <button class="btn-secondary" id="auth-btn-go-login" style="width:100%;max-width:280px;">🔑 Entrar / Criar conta</button>
+        </div>
+      </div>
+
+      <!-- ETAPA 2: login -->
+      <div id="auth-step-login" class="hidden">
+        <div class="overlay-title" style="font-size:18px;">🔑 Entrar</div>
+        <div class="overlay-sub">Use seu nickname e senha.</div>
+        <div class="setup-group">
+          <div class="setup-group-label">Nickname</div>
+          <input type="text" id="auth-login-nickname" class="name-input" placeholder="seu_nickname" maxlength="16" autocomplete="username">
+        </div>
+        <div class="setup-group" style="margin-top:10px;">
+          <div class="setup-group-label">Senha</div>
+          <input type="password" id="auth-login-password" class="name-input" placeholder="Sua senha" autocomplete="current-password">
+        </div>
+        <div class="auth-error" id="auth-login-error"></div>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
+          <button class="btn-secondary" id="auth-btn-do-login" style="width:100%;max-width:280px;background:linear-gradient(135deg,#00e5ff,#0088aa);color:#00131a;font-weight:700;">ENTRAR</button>
+          <button class="btn-secondary" id="auth-btn-go-register" style="width:100%;max-width:280px;">Não tenho conta — criar agora</button>
+          <button class="btn-secondary" id="auth-btn-back-1" style="width:100%;max-width:280px;">⬅ Voltar</button>
+        </div>
+      </div>
+
+      <!-- ETAPA 3: cadastro -->
+      <div id="auth-step-register" class="hidden">
+        <div class="overlay-title" style="font-size:18px;">✍️ Criar conta</div>
+        <div class="overlay-sub">Seu nickname vira seu nome dentro do jogo.</div>
+        <div class="setup-group">
+          <div class="setup-group-label">Seu nome</div>
+          <input type="text" id="auth-reg-name" class="name-input" placeholder="Nome e sobrenome" maxlength="24">
+        </div>
+        <div class="setup-group" style="margin-top:10px;">
+          <div class="setup-group-label">Nickname (login e nome no jogo)</div>
+          <input type="text" id="auth-reg-nickname" class="name-input" placeholder="3 a 16 caracteres, sem espaço" maxlength="16" autocomplete="username">
+        </div>
+        <div class="setup-group" style="margin-top:10px;">
+          <div class="setup-group-label">Senha</div>
+          <input type="password" id="auth-reg-password" class="name-input" placeholder="8+ caracteres, letra, número e símbolo" autocomplete="new-password">
+        </div>
+        <div class="setup-group" style="margin-top:10px;">
+          <div class="setup-group-label">Confirmar senha</div>
+          <input type="password" id="auth-reg-confirm" class="name-input" placeholder="Repita a senha" autocomplete="new-password">
+        </div>
+        <div class="auth-error" id="auth-register-error"></div>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
+          <button class="btn-secondary" id="auth-btn-do-register" style="width:100%;max-width:280px;background:linear-gradient(135deg,#4cff8b,#2aaf6a);color:#00131a;font-weight:700;">CRIAR CONTA</button>
+          <button class="btn-secondary" id="auth-btn-back-2" style="width:100%;max-width:280px;">⬅ Voltar</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ========= MENU PRINCIPAL ========= -->
-  <div class="overlay" id="main-menu">
+  <div class="overlay hidden" id="main-menu">
     <div class="overlay-card menu-card">
       <div class="menu-header-row">
         <div class="menu-header-left">
@@ -201,6 +279,8 @@ body.replay-active #radar-target-arrow {
         </div>
         <div class="menu-header-right">
           <button type="button" class="view-plane-btn-inline" id="menu-view-plane-btn">🔭 VER AVIÃO</button>
+          <button type="button" class="view-plane-btn-inline" id="menu-site-btn" title="Abrir o site do Batalha Aérea">🌐 SITE</button>
+          <button type="button" class="view-plane-btn-inline icon-only" id="menu-settings-btn" title="Configurações de áudio/voz">⚙️</button>
         </div>
       </div>
 
@@ -429,11 +509,15 @@ body.replay-active #radar-target-arrow {
           <img src="img/.png" alt="Batalha Aérea" class="menu-logo-img">
         </div>
         <div class="menu-header-right">
-          <button type="button" class="view-plane-btn-inline" id="lobby-view-plane-btn">🔭 VER AVIÃO</button>
+          <div class="lobby-header-btn-row">
+            <button type="button" class="view-plane-btn-inline" id="lobby-view-plane-btn">🔭 VER AVIÃO</button>
+            <button type="button" class="view-plane-btn-inline" id="lobby-site-btn" title="Abrir o site do Batalha Aérea">🌐 SITE</button>
+            <button type="button" class="view-plane-btn-inline icon-only" id="lobby-settings-btn" title="Configurações de áudio/voz">⚙️</button>
+          </div>
           <!-- CORREÇÃO: o chat de texto (ver text-chat.js/ensureChatBox)
                era uma caixinha flutuante fixa no canto da tela. Agora
                nasce aqui dentro, embutido no cabeçalho, do lado da logo
-               e abaixo do botão de ver o avião — tem espaço de sobra. -->
+               e abaixo da linha de botões — tem espaço de sobra. -->
           <div id="lobby-chat-slot"></div>
         </div>
       </div>
@@ -595,6 +679,7 @@ body.replay-active #radar-target-arrow {
   <script src="/socket.io/socket.io.js"></script>
 
   <script src="js/config.js"></script>
+  <script src="js/auth-client.js"></script>
   <script src="js/scene-setup.js"></script>
   <script src="js/plane-specs.js"></script>
   <script src="js/plane-model-realistic.js"></script>

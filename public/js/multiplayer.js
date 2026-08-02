@@ -22,7 +22,7 @@ function leaveOnlineIfNeeded() {
   onlineState.active = false;
   onlineState.isFreeRoom = false;
   lastKnownRoomState = null;
-  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); });
+  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); if (rp.parts && rp.parts.shadow && rp.parts.shadow.parent) rp.parts.shadow.parent.remove(rp.parts.shadow); });
   remotePlayers.clear();
   document.getElementById('lobby-overlay').classList.add('hidden');
   document.getElementById('matchend-overlay').classList.add('hidden');
@@ -546,7 +546,7 @@ function bindCommonSocketHandlers(socket) {
     onlineState.ready = false;
     document.getElementById('lobby-ready-btn').textContent = 'PRONTO';
     document.getElementById('lobby-ready-btn').style.background = 'rgba(0,229,255,0.12)';
-    remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); });
+    remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (rp.parts && rp.parts.shadow && rp.parts.shadow.parent) rp.parts.shadow.parent.remove(rp.parts.shadow); });
     remotePlayers.clear();
     revivePlayer();
     state.kills = 0; state.deaths = 0;
@@ -560,7 +560,7 @@ function bindCommonSocketHandlers(socket) {
 
   socket.on('player-left', (data) => {
     const rp = remotePlayers.get(data.id);
-    if (rp) { if (rp._abilityTimeout) clearTimeout(rp._abilityTimeout); if (rp._trailInterval) clearInterval(rp._trailInterval); detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); remotePlayers.delete(data.id); }
+    if (rp) { if (rp._abilityTimeout) clearTimeout(rp._abilityTimeout); if (rp._trailInterval) clearInterval(rp._trailInterval); detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); if (rp.parts && rp.parts.shadow && rp.parts.shadow.parent) rp.parts.shadow.parent.remove(rp.parts.shadow); remotePlayers.delete(data.id); }
     updateScoreboardFromRoom(null);
   });
 
@@ -758,10 +758,21 @@ function beginOnlineMatch(data) {
 
   matchEnded = false;
   revivePlayer();
-  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); });
+  remotePlayers.forEach(rp => { detachEngineSound(rp.parts); if (rp.mesh.parent) scene.remove(rp.mesh); if (rp.label) rp.label.remove(); if (typeof disposeSmokeEmitter === 'function') disposeSmokeEmitter(rp._smoke); if (rp.parts && rp.parts.shadow && rp.parts.shadow.parent) rp.parts.shadow.parent.remove(rp.parts.shadow); });
   remotePlayers.clear();
   botsEnabled = false;
-  enemyBots.forEach(e => { if (e.mesh.parent) scene.remove(e.mesh); if (e.label) e.label.remove(); });
+  enemyBots.forEach(e => {
+    if (e.mesh.parent) scene.remove(e.mesh);
+    if (e.label) e.label.remove();
+    // CORREÇÃO: mesmo vazamento de sombra já corrigido em
+    // spawnEnemyBots() (enemies-bots.js) — este é OUTRO ponto do código
+    // que também limpa os bots (ao entrar numa partida online vindo do
+    // treino solo) e tinha o mesmo problema: removia só `e.mesh`, nunca
+    // `e.parts.shadow` (que é adicionado direto na cena, irmão do mesh,
+    // não filho). Por isso a sombra de um bot ficava "presa" no chão
+    // pra sempre ao entrar numa sala online depois de treinar sozinho.
+    if (e.parts && e.parts.shadow && e.parts.shadow.parent) e.parts.shadow.parent.remove(e.parts.shadow);
+  });
   enemyBots = [];
 
   currentMode = data.mode || 'ffa';

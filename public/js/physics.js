@@ -398,6 +398,9 @@ function triggerExplosiveCrash() {
     return;
   }
 
+  // REVERTIDO A PEDIDO: colisão estrutural (bater no chão forte ou em
+  // prédio/obstáculo) volta a matar na hora, sempre — igual era antes de
+  // eu ter mudado isso pra dano parcial. Zera a vida incondicionalmente.
   state.health = 0;
   state.shield = 0;
   state.velocity = 0;
