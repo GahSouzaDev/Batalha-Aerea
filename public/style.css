@@ -886,3 +886,13 @@ body.mobile-hud #lobby-overlay .menu-header-center {
   text-align: center;
 }
 #auth-logged-badge a:hover { color: #ff9a9a; }
+
+/* Botão de mostrar/ocultar senha (👁️) nos campos de login/cadastro */
+.pw-field-wrap { position: relative; }
+.pw-field-wrap .name-input { padding-right: 40px; width: 100%; box-sizing: border-box; }
+.pw-toggle-btn {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; font-size: 15px;
+  opacity: 0.55; padding: 4px 6px; line-height: 1;
+}
+.pw-toggle-btn:hover { opacity: 1; }

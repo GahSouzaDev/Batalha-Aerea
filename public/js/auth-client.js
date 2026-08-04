@@ -57,6 +57,10 @@ function authEnterGame() {
     const nameInput = document.getElementById('menu-name');
     if (nameInput) nameInput.value = authState.user.nickname;
     authShowLoggedInBadge();
+    // PEDIDO: perfil persistente (som, avião preferido, foto) — ver
+    // social-client.js. Só roda pra quem está logado; sem login, nada
+    // disso é chamado e o jogo continua exatamente como sempre foi.
+    if (typeof socialOnLogin === 'function') socialOnLogin();
   }
   // Avisa o resto do jogo (menu-camera.js/refreshMenuCollapseUI etc.)
   // que agora tem overlay de menu pra cuidar da câmera de prévia.
@@ -225,6 +229,19 @@ async function authInit() {
   if (loginPwd) loginPwd.addEventListener('keypress', (e) => { if (e.key === 'Enter') authDoLogin(); });
   const confirmPwd = document.getElementById('auth-reg-confirm');
   if (confirmPwd) confirmPwd.addEventListener('keypress', (e) => { if (e.key === 'Enter') authDoRegister(); });
+
+  // PEDIDO: botão de "olhinho" pra mostrar/ocultar a senha digitada —
+  // um só listener delegado cobre os 3 campos de senha da tela
+  // (login, cadastro, confirmar cadastro).
+  document.querySelectorAll('.pw-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.target);
+      if (!input) return;
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.textContent = showing ? '👁️' : '🙈';
+    });
+  });
 }
 
 document.addEventListener('DOMContentLoaded', authInit);

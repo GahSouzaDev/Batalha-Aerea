@@ -47,6 +47,11 @@ function connectOnline(roomId, playerData, password) {
 
   socket.on('connect', () => {
     onlineState.myId = socket.id;
+    // PEDIDO: sistema de amigos (ver friends.js/social-client.js) — se
+    // estiver logado, avisa o servidor qual conta é essa ANTES de
+    // criar/entrar na sala, pra abates/mortes/dirigível já contarem
+    // pras estatísticas da conta desde o primeiro segundo.
+    if (typeof authState !== 'undefined' && authState.token) socket.emit('auth-identify', { token: authState.token });
     if (roomId) {
       socket.emit('join-room', { roomId, password, playerData }, (res) => {
         if (!res.success) {
@@ -97,6 +102,7 @@ function joinFreeRoom(playerData) {
 
   socket.on('connect', () => {
     onlineState.myId = socket.id;
+    if (typeof authState !== 'undefined' && authState.token) socket.emit('auth-identify', { token: authState.token });
     socket.emit('join-free-room', playerData, (res) => {
       if (!res || !res.success) {
         showTemporaryMessage('Não foi possível entrar na Sala Livre.', 2500);
@@ -172,6 +178,24 @@ function addRemotePlayer(p) {
 //  Handlers de socket compartilhados entre sala normal e sala livre.
 // ================================================================
 function bindCommonSocketHandlers(socket) {
+  // PEDIDO: sistema de amigos/desafio (ver friends.js no servidor,
+  // social-client.js aqui) — funciona em qualquer sala (criada ou
+  // livre), por isso fica no ponto compartilhado. Delegado por nome de
+  // função (com typeof) pra não quebrar caso social-client.js não tenha
+  // carregado ainda por algum motivo.
+  socket.on('friend-request-received', (data) => {
+    if (typeof socialOnFriendRequestReceived === 'function') socialOnFriendRequestReceived(data);
+  });
+  socket.on('friend-request-answered', (data) => {
+    if (typeof socialOnFriendRequestAnswered === 'function') socialOnFriendRequestAnswered(data);
+  });
+  socket.on('challenge-invite', (data) => {
+    if (typeof socialOnChallengeInvite === 'function') socialOnChallengeInvite(data);
+  });
+  socket.on('challenge-response', (data) => {
+    if (typeof socialOnChallengeResponse === 'function') socialOnChallengeResponse(data);
+  });
+
   // CORREÇÃO: na Sala Livre (persistente, todo mundo entra em momentos
   // diferentes) quem já estava voando nunca ficava sabendo que alguém
   // novo entrou — o avião do novo jogador simplesmente não aparecia pra

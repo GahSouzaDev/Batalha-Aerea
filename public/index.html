@@ -217,7 +217,7 @@ body.replay-active #radar-target-arrow {
         </div>
         <div class="setup-group" style="margin-top:10px;">
           <div class="setup-group-label">Senha</div>
-          <input type="password" id="auth-login-password" class="name-input" placeholder="Sua senha" autocomplete="current-password">
+          <div class="pw-field-wrap"><input type="password" id="auth-login-password" class="name-input" placeholder="Sua senha" autocomplete="current-password"><button type="button" class="pw-toggle-btn" data-target="auth-login-password" tabindex="-1">👁️</button></div>
         </div>
         <div class="auth-error" id="auth-login-error"></div>
         <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
@@ -241,11 +241,11 @@ body.replay-active #radar-target-arrow {
         </div>
         <div class="setup-group" style="margin-top:10px;">
           <div class="setup-group-label">Senha</div>
-          <input type="password" id="auth-reg-password" class="name-input" placeholder="8+ caracteres, letra, número e símbolo" autocomplete="new-password">
+          <div class="pw-field-wrap"><input type="password" id="auth-reg-password" class="name-input" placeholder="8+ caracteres, letra, número e símbolo" autocomplete="new-password"><button type="button" class="pw-toggle-btn" data-target="auth-reg-password" tabindex="-1">👁️</button></div>
         </div>
         <div class="setup-group" style="margin-top:10px;">
           <div class="setup-group-label">Confirmar senha</div>
-          <input type="password" id="auth-reg-confirm" class="name-input" placeholder="Repita a senha" autocomplete="new-password">
+          <div class="pw-field-wrap"><input type="password" id="auth-reg-confirm" class="name-input" placeholder="Repita a senha" autocomplete="new-password"><button type="button" class="pw-toggle-btn" data-target="auth-reg-confirm" tabindex="-1">👁️</button></div>
         </div>
         <div class="auth-error" id="auth-register-error"></div>
         <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
@@ -272,6 +272,19 @@ body.replay-active #radar-target-arrow {
           <div class="menu-toolbar">
             <button class="btn-secondary btn-chip" id="btn-tutorial">📖 Tutorial</button>
             <button class="btn-secondary btn-chip" id="btn-controls-config">🎮 Controles</button>
+            <button class="btn-secondary btn-chip" id="btn-friends">👥 Amigos</button>
+            <button class="btn-secondary btn-chip" id="btn-ranking">🏆 Ranking</button>
+          </div>
+          <!-- PEDIDO: foto de perfil — só faz sentido logado (ver
+               social-client.js). Sem login, esse bloco fica escondido. -->
+          <!-- PEDIDO: a foto de perfil agora aparece DENTRO do carrossel
+               de pilotos, como uma opção extra ("piloto 16") — ver
+               ui-menu.js/setCustomPilotPhoto e social-client.js. Este
+               bloco só precisa do botão que abre o seletor de arquivo;
+               a pré-visualização é o próprio carrossel logo acima. -->
+          <div id="profile-photo-block" class="hidden" style="margin-top:8px;">
+            <label for="profile-photo-input" class="btn-secondary btn-chip" style="cursor:pointer;font-size:11px;">📷 Trocar foto</label>
+            <input type="file" id="profile-photo-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;">
           </div>
         </div>
         <div class="menu-header-center">
@@ -503,6 +516,7 @@ body.replay-active #radar-target-arrow {
           <div class="menu-toolbar">
             <button class="btn-secondary btn-chip" id="lobby-btn-tutorial">📖 Tutorial</button>
             <button class="btn-secondary btn-chip" id="lobby-btn-controls-config">🎮 Controles</button>
+            <button class="btn-secondary btn-chip" id="lobby-btn-friends">👥 Amigos</button>
           </div>
         </div>
         <div class="menu-header-center">
@@ -673,6 +687,47 @@ body.replay-active #radar-target-arrow {
     </div>
   </div>
 
+  <!-- ========= AMIGOS ========= -->
+  <div class="modal hidden" id="modal-friends">
+    <div class="modal-content" style="max-width:440px;max-height:80vh;overflow-y:auto;">
+      <button class="modal-close" id="modal-friends-close">&times;</button>
+      <div class="overlay-title" style="font-size:18px;">👥 Amigos</div>
+      <div id="friends-guest-notice" class="hidden" style="font-size:12.5px;color:#7fbfd6;margin:10px 0;">
+        Faça login pra adicionar amigos e desafiar quem quiser.
+      </div>
+      <div id="friends-logged-area">
+        <div style="display:flex;gap:6px;margin-top:12px;">
+          <input type="text" id="friends-search-input" class="name-input" placeholder="Buscar por nickname..." style="flex:1;">
+          <button class="btn-secondary btn-chip" id="friends-search-btn">🔍</button>
+        </div>
+        <div id="friends-search-results" style="margin-top:8px;"></div>
+
+        <div class="overlay-title" style="font-size:14px;margin-top:18px;">Pedidos recebidos</div>
+        <div id="friends-incoming-list" style="margin-top:6px;"></div>
+
+        <div class="overlay-title" style="font-size:14px;margin-top:18px;">Pedidos enviados</div>
+        <div id="friends-outgoing-list" style="margin-top:6px;"></div>
+
+        <div class="overlay-title" style="font-size:14px;margin-top:18px;">Seus amigos</div>
+        <div id="friends-list" style="margin-top:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========= RANKING ========= -->
+  <div class="modal hidden" id="modal-ranking">
+    <div class="modal-content" style="max-width:440px;max-height:80vh;overflow-y:auto;">
+      <button class="modal-close" id="modal-ranking-close">&times;</button>
+      <div class="overlay-title" style="font-size:18px;">🏆 Ranking</div>
+      <div class="overlay-sub">Baseado em quem joga logado — jogar sem conta não entra aqui.</div>
+
+      <div id="ranking-titles" style="margin-top:14px;"></div>
+
+      <div class="overlay-title" style="font-size:14px;margin-top:18px;">Top 20 por abates</div>
+      <div id="ranking-leaderboard" style="margin-top:6px;"></div>
+    </div>
+  </div>
+
   <!-- ========= SCRIPTS ========= -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
@@ -680,6 +735,7 @@ body.replay-active #radar-target-arrow {
 
   <script src="js/config.js"></script>
   <script src="js/auth-client.js"></script>
+  <script src="js/social-client.js"></script>
   <script src="js/scene-setup.js"></script>
   <script src="js/plane-specs.js"></script>
   <script src="js/plane-model-realistic.js"></script>

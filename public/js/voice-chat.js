@@ -74,6 +74,7 @@ function voiceChatConnect(playerData) {
   voiceChat.myName = (voiceChat.lastPlayerData && voiceChat.lastPlayerData.name) || 'Piloto';
   voiceChat.myColor = (voiceChat.lastPlayerData && voiceChat.lastPlayerData.color) || '#00e5ff';
   voiceChat.myPilot = (voiceChat.lastPlayerData && voiceChat.lastPlayerData.pilot) || (typeof selectedPilotIndex !== 'undefined' ? selectedPilotIndex : 1);
+  voiceChat.myCustomPhotoUrl = (voiceChat.lastPlayerData && voiceChat.lastPlayerData.customPhotoUrl) || null;
   // PTT começa mudo (só transmite segurando); "sempre ligado" começa com
   // o microfone ativo.
   voiceChat.micOn = (voiceChat.mode === 'open');
@@ -83,7 +84,7 @@ function voiceChatConnect(playerData) {
       voiceChat.localStream = stream;
       stream.getAudioTracks().forEach(t => { t.enabled = voiceChat.micOn; });
       bindVoiceSocketEvents();
-      onlineState.socket.emit('voice-join', { name: voiceChat.myName, color: voiceChat.myColor, muted: !voiceChat.micOn, pilot: voiceChat.myPilot }, (res) => {
+      onlineState.socket.emit('voice-join', { name: voiceChat.myName, color: voiceChat.myColor, muted: !voiceChat.micOn, pilot: voiceChat.myPilot, customPhotoUrl: voiceChat.myCustomPhotoUrl }, (res) => {
         voiceChat.connecting = false;
         if (!res || !res.success) {
           showTemporaryMessage && showTemporaryMessage('🎙️ ' + ((res && res.message) || 'Não foi possível entrar no chat de voz.'), 3000);
@@ -232,11 +233,13 @@ function ensurePeer(id, meta) {
     peer.color = meta.color || peer.color;
     peer.muted = !!meta.muted;
     peer.pilot = meta.pilot || peer.pilot;
+    peer.customPhotoUrl = meta.customPhotoUrl || peer.customPhotoUrl || null;
     return peer;
   }
   peer = {
     pc: null, audioEl: null, name: meta.name || 'Piloto', color: meta.color || '#00e5ff',
-    muted: !!meta.muted, pilot: meta.pilot || 1, speaking: false, volume: 1, locallyMuted: false, analyser: null, dataArr: null,
+    muted: !!meta.muted, pilot: meta.pilot || 1, customPhotoUrl: meta.customPhotoUrl || null,
+    speaking: false, volume: 1, locallyMuted: false, analyser: null, dataArr: null,
     pendingIce: [], connectionIssue: false, reconnectTimer: null, restartAttempts: 0,
   };
   voiceChat.peers.set(id, peer);
@@ -505,23 +508,29 @@ function renderVoicePanel() {
   el.classList.remove('hidden');
   el.innerHTML = '';
 
-  const selfAvatar = buildAvatarEl(voiceChat.myName + ' (você)', voiceChat.myColor, voiceChat.mySpeaking, !voiceChat.micOn, 'self', voiceChat.myPilot);
+  const selfAvatar = buildAvatarEl(voiceChat.myName + ' (você)', voiceChat.myColor, voiceChat.mySpeaking, !voiceChat.micOn, 'self', voiceChat.myPilot, false, voiceChat.myCustomPhotoUrl);
   el.appendChild(selfAvatar);
 
   voiceChat.peers.forEach((peer, id) => {
-    const av = buildAvatarEl(peer.name, peer.color, peer.speaking, peer.muted || peer.locallyMuted, id, peer.pilot, peer.connectionIssue);
+    const av = buildAvatarEl(peer.name, peer.color, peer.speaking, peer.muted || peer.locallyMuted, id, peer.pilot, peer.connectionIssue, peer.customPhotoUrl);
     el.appendChild(av);
   });
 }
 
-function buildAvatarEl(name, color, speaking, muted, peerId, pilot, connectionIssue) {
+function buildAvatarEl(name, color, speaking, muted, peerId, pilot, connectionIssue, customPhotoUrl) {
   const wrap = document.createElement('div');
   wrap.className = 'voice-avatar' + (speaking ? ' speaking' : '') + (muted ? ' muted' : '') + (connectionIssue ? ' connection-issue' : '');
   wrap.title = name + (connectionIssue ? ' — problema de conexão (rede/NAT), tentando reconectar...' : '');
   if (peerId) wrap.dataset.peerId = peerId;
   const circle = document.createElement('div');
   circle.className = 'voice-avatar-circle';
-  if (pilot && typeof pilotImagePath === 'function') {
+  // PEDIDO: foto de perfil (piloto 16) tem prioridade sobre o número do
+  // piloto — é a MESMA imagem enviada pelo servidor (já validada em
+  // safeAvatarPhotoUrl no server.js, então é segura de usar direto).
+  if (customPhotoUrl) {
+    circle.style.backgroundImage = "url('" + customPhotoUrl + "')";
+    circle.style.backgroundColor = color || '#00e5ff';
+  } else if (pilot && typeof pilotImagePath === 'function') {
     circle.style.backgroundImage = "url('" + pilotImagePath(pilot) + "')";
     circle.style.backgroundColor = color || '#00e5ff';
   } else {
