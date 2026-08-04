@@ -1,5 +1,8 @@
-// social-client.js — perfil/amigos + CENTRAL DO PILOTO (ranking/patentes/condecorações em tela cheia)
-// Depende de auth-client.js (authState, authFetch, isLoggedIn).
+// social-client.js — perfil/amigos + CENTRAL DO PILOTO (texto claro, títulos escolhíveis, fotos no ranking)
+// CORREÇÃO DESTA VERSÃO: applyProfileToUI não restaurava o piloto salvo
+// quando a conta tinha foto própria (condição "!profile.photoUrl" errada) —
+// por isso "a foto mudava sozinha" ao entrar no jogo. Agora o piloto
+// salvo na conta (1..15 ou 16=sua foto) SEMPRE é restaurado no login.
 const RANKS = [
   { k: 's2', n: 'Soldado de Segunda Classe (S2)', q: 0, img: 'soldado-de-segunda-classe(s2).png' },
   { k: 's1', n: 'Soldado de Primeira Classe (S1)', q: 25, img: 'soldado-de-primeira-classe(s1).png' },
@@ -12,35 +15,49 @@ const RANKS = [
   { k: 'brig', n: 'Brigadeiro', q: 6500, img: 'brigadeiro.png' }, { k: 'mbrig', n: 'Major-Brigadeiro', q: 8000, img: 'major-brigadeiro.png' },
   { k: 'tbrig', n: 'Tenente-Brigadeiro', q: 10000, img: 'tenente-brigadeiro.png' },
 ];
-const MEDALS = [
-  ['veterano_dos_ceus', 'Veterano dos Céus', '5/20/75 horas de voo'], ['as_dos_ceus', 'Ás dos Céus', '50/250/1000 abates'],
-  ['mestre_da_sobrevivencia', 'Mestre da Sobrevivência', '5/15/50 partidas seguidas vivo'], ['fantasma_dos_ceus', 'Fantasma dos Céus', 'K/D 1.5/2.5/4.0'],
-  ['abatedor_de_dirigiveis', 'Abatedor de Dirigíveis', '10/50/250 dirigíveis'], ['bombardeiro_de_elite', 'Bombardeiro de Elite', '25/100/400 mortes com bomba'],
-  ['mestre_dos_misseis', 'Mestre dos Mísseis', '25/100/400 mortes com míssil'], ['heroi_da_esquadrilha', 'Herói da Esquadrilha', '10/50/200 MVPs'],
-  ['conquistador_dos_ceus', 'Conquistador dos Céus', '25/100/500 vitórias'], ['piloto_veterano', 'Piloto Veterano', '50/250/1000 partidas'],
-  ['implacavel', 'Implacável', '5/10/20 min vivo numa partida'], ['blindagem_viva', 'Blindagem Viva', '500/2.000/10.000 de dano sofrido'],
-  ['ultimo_no_ceu', 'Último no Céu', '10/50/250 vezes último sobrevivente'], ['primeiro_ataque', 'Primeiro Ataque', '10/50/250 primeiros abates'],
-  ['piloto_dedicado', 'Piloto Dedicado', '7/30/180 dias de login'], ['orgulho_da_esquadrilha', 'Orgulho da Esquadrilha', 'Sargento/Capitão/Tenente-Brigadeiro'],
-];
-const SECRETS = [
-  ['fenix', 'Fênix', 'Vença após ser abatido 5 vezes no mesmo dia.'], ['kamikaze', 'Kamikaze', 'Destrua um dirigível e mate com a explosão.'],
-  ['tiro_perfeito', 'Tiro Perfeito', '20 tiros seguidos sem errar.'], ['cacador_relampago', 'Caçador Relâmpago', '3 abates em menos de 20s.'],
-  ['dominio_aereo', 'Domínio Aéreo', 'Vença uma partida sem morrer.'], ['lenda_da_batalha_aerea', 'Lenda da Batalha Aérea', 'Todas as medalhas Ouro.'],
-];
-const LVL = ['bronze', 'prata', 'ouro'];
+const MEDAL_NAMES = {
+  veterano_dos_ceus: 'Veterano dos Céus', as_dos_ceus: 'Ás dos Céus', mestre_da_sobrevivencia: 'Mestre da Sobrevivência',
+  fantasma_dos_ceus: 'Fantasma dos Céus', abatedor_de_dirigiveis: 'Abatedor de Dirigíveis', bombardeiro_de_elite: 'Bombardeiro de Elite',
+  mestre_dos_misseis: 'Mestre dos Mísseis', heroi_da_esquadrilha: 'Herói da Esquadrilha', conquistador_dos_ceus: 'Conquistador dos Céus',
+  piloto_veterano: 'Piloto Veterano', implacavel: 'Implacável', blindagem_viva: 'Blindagem Viva', ultimo_no_ceu: 'Último no Céu',
+  primeiro_ataque: 'Primeiro Ataque', piloto_dedicado: 'Piloto Dedicado', orgulho_da_esquadrilha: 'Orgulho da Esquadrilha',
+  fenix: 'Fênix', kamikaze: 'Kamikaze', tiro_perfeito: 'Tiro Perfeito', cacador_relampago: 'Caçador Relâmpago',
+  dominio_aereo: 'Domínio Aéreo', lenda_da_batalha_aerea: 'Lenda da Batalha Aérea',
+};
+const LVLN = { 1: 'bronze', 2: 'prata', 3: 'ouro' };
 const socialState = { stats: null };
 
 // ==================== PERFIL ====================
 async function socialOnLogin() {
   const g = document.getElementById('friends-guest-notice'), l = document.getElementById('friends-logged-area'), pb = document.getElementById('profile-photo-block');
   if (g) g.classList.add('hidden'); if (l) l.classList.remove('hidden'); if (pb) pb.classList.remove('hidden');
-  try { const d = await authFetch('/api/profile/me'); applyProfileToUI(d.profile); socialState.stats = d.stats; } catch (e) { console.warn('[social]', e.message); }
+  try {
+    const d = await authFetch('/api/profile/me');
+    applyProfileToUI(d.profile);
+    socialState.stats = d.stats;
+  } catch (e) { console.warn('[social]', e.message); }
 }
 function applyProfileToUI(profile) {
   if (!profile) return;
   if (typeof setGameSoundMuted === 'function') setGameSoundMuted(!profile.soundEnabled);
-  if (profile.preferredPlane && typeof PLANE_ORDER !== 'undefined' && typeof selectCarouselIndex === 'function') { const i = PLANE_ORDER.indexOf(profile.preferredPlane); if (i >= 0) selectCarouselIndex('menu', 'menu', i); }
-  if (profile.photoUrl && typeof setCustomPilotPhoto === 'function') setCustomPilotPhoto(profile.photoUrl, false);
+  if (profile.preferredPlane && typeof PLANE_ORDER !== 'undefined' && typeof selectCarouselIndex === 'function') {
+    const i = PLANE_ORDER.indexOf(profile.preferredPlane); if (i >= 0) selectCarouselIndex('menu', 'menu', i);
+  }
+  // 1) Se a conta tem foto própria, disponibiliza o slot "piloto 16"
+  if (profile.photoUrl && typeof setCustomPilotPhoto === 'function') {
+    setCustomPilotPhoto(profile.photoUrl, false);
+  }
+  // 2) CORREÇÃO: restaura o piloto SALVO NA CONTA (1..15, ou 16 = sua foto).
+  //    Antes isso era pulado quando a conta tinha foto — daí a foto
+  //    "mudar sozinha" toda vez que entrava no jogo.
+  const pp = profile.preferredPilot;
+  if (pp && typeof selectPilotIndex === 'function') {
+    if (pp === 16) {
+      if (profile.photoUrl && typeof setCustomPilotPhoto === 'function') setCustomPilotPhoto(profile.photoUrl, true);
+    } else {
+      selectPilotIndex(pp);
+    }
+  }
 }
 let _saveDeb = null;
 function socialSaveSettings(partial) {
@@ -51,6 +68,12 @@ function socialSaveSettings(partial) {
 document.addEventListener('DOMContentLoaded', () => {
   const m = document.getElementById('menu-mute-toggle'); if (m) m.addEventListener('change', () => socialSaveSettings({ soundEnabled: !m.checked }));
   const mu = document.getElementById('menu-lobby-music-toggle'); if (mu) mu.addEventListener('change', () => socialSaveSettings({ musicEnabled: mu.checked }));
+  // persiste o piloto escolhido na conta (intercepta a função global do ui-menu.js)
+  if (typeof window.selectPilotIndex === 'function' && !window.__pilotHooked) {
+    window.__pilotHooked = true;
+    const base = window.selectPilotIndex;
+    window.selectPilotIndex = function (i) { base(i); socialSaveSettings({ preferredPilot: window.selectedPilotIndex }); };
+  }
   const inp = document.getElementById('profile-photo-input');
   if (inp) inp.addEventListener('change', async () => {
     const f = inp.files && inp.files[0]; if (!f || !isLoggedIn()) { inp.value = ''; return; }
@@ -85,7 +108,7 @@ function friendRowHtml(e, kind) {
   if (kind === 'incoming') act = `<button class="btn-secondary btn-chip" data-action="accept" data-req="${e.requestId}">✅ Aceitar</button><button class="btn-secondary btn-chip" data-action="decline" data-req="${e.requestId}">❌ Recusar</button>`;
   else if (kind === 'outgoing') act = '<span style="font-size:11px;color:#7fbfd6;">Aguardando resposta...</span>';
   else act = `<button class="btn-secondary btn-chip" data-action="challenge" data-uid="${e.userId}" data-nick="${socialEscapeHtml(e.nickname)}" ${e.online ? '' : 'disabled'}>⚔️ Desafiar</button><button class="btn-secondary btn-chip" data-action="remove" data-uid="${e.userId}">🗑️</button>`;
-  return `<div class="friend-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);"><div style="text-align:left;"><div style="font-weight:600;">${socialEscapeHtml(e.nickname)}</div><div style="font-size:11px;">${on}</div></div><div style="display:flex;gap:6px;">${act}</div></div>`;
+  return `<div class="friend-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);"><div style="text-align:left;"><div style="font-weight:600;color:#E4EBFD;">${socialEscapeHtml(e.nickname)}</div><div style="font-size:11px;">${on}</div></div><div style="display:flex;gap:6px;">${act}</div></div>`;
 }
 function renderFriendRows(id, list, kind) { const el = document.getElementById(id); if (!el) return; if (!list || !list.length) { el.innerHTML = '<div style="font-size:12px;color:#7a8a99;">Nada por aqui.</div>'; return; } el.innerHTML = list.map(x => friendRowHtml(x, kind)).join(''); }
 document.addEventListener('click', async (e) => {
@@ -111,7 +134,7 @@ async function socialDoFriendSearch() {
       if (u.status === 'friends') act = '<span style="font-size:11px;color:#4cff8b;">Já são amigos</span>';
       else if (u.status === 'sent') act = '<span style="font-size:11px;color:#7fbfd6;">Pedido enviado</span>';
       else if (u.status === 'received') act = '<span style="font-size:11px;color:#ffd23f;">Te chamou — veja "Pedidos recebidos"</span>';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;">${socialEscapeHtml(u.nickname)}</div>${act}</div>`;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;color:#E4EBFD;">${socialEscapeHtml(u.nickname)}</div>${act}</div>`;
     }).join('');
   } catch (err) { results.innerHTML = `<div style="font-size:12px;color:#ff8080;">${socialEscapeHtml(err.message)}</div>`; }
 }
@@ -136,22 +159,24 @@ function socialOnChallengeInvite(d) {
 }
 function socialOnChallengeResponse(d) { if (typeof showTemporaryMessage === 'function') showTemporaryMessage(d.accepted ? `✅ ${d.byNickname} aceitou o desafio!` : `${d.byNickname} recusou o desafio.`, 2800); }
 
-// ==================== CENTRAL DO PILOTO (tela cheia) ====================
+// ==================== CENTRAL DO PILOTO (tela cheia, texto CLARO) ====================
 let centralEl = null;
 function ensureCentral() {
   if (centralEl) return centralEl;
   centralEl = document.createElement('div');
   centralEl.id = 'pilot-central';
-  centralEl.style.cssText = 'position:fixed;inset:0;z-index:950;background:rgba(1,10,25,0.97);overflow-y:auto;display:none;padding:20px 14px 60px;';
+  centralEl.style.cssText = 'position:fixed;inset:0;z-index:950;background:rgba(1,10,25,0.97);overflow-y:auto;display:none;padding:20px 14px 60px;color:#E4EBFD;';
   const st = document.createElement('style');
   st.textContent = `
+  #pilot-central, #pilot-central *{box-sizing:border-box}
   #pilot-central .pc-wrap{max-width:1080px;margin:0 auto;}
   #pilot-central .pc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
   #pilot-central .pc-title{font-family:var(--font-display,'Rajdhani');font-size:24px;font-weight:800;color:var(--gold,#FEBA02);letter-spacing:1px;}
   #pilot-central .pc-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
-  #pilot-central .pc-tab{padding:9px 16px;border:1px solid var(--line,rgba(254,186,2,.35));background:rgba(228,235,253,.05);color:var(--text-mute,#cfe);cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.5px;}
+  #pilot-central .pc-tab{padding:9px 16px;border:1px solid var(--line,rgba(254,186,2,.35));background:rgba(228,235,253,.05);color:#cfe6ff;cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.5px;}
   #pilot-central .pc-tab.active{background:linear-gradient(135deg,var(--gold,#FEBA02),#c99000);color:#1a1200;border-color:transparent;}
-  #pilot-central .pc-card{background:rgba(1,31,67,.85);border:1px solid var(--line-soft,rgba(254,186,2,.16));border-radius:12px;padding:14px;margin-bottom:12px;}
+  #pilot-central .pc-card{background:rgba(1,31,67,.85);border:1px solid var(--line-soft,rgba(254,186,2,.16));border-radius:12px;padding:14px;margin-bottom:12px;color:#E4EBFD;}
+  #pilot-central .pc-sub{font-weight:800;color:var(--gold,#FEBA02);font-size:13px;letter-spacing:.5px;margin-bottom:10px;}
   #pilot-central .pc-rankrow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
   #pilot-central .pc-rankimg{width:86px;height:120px;object-fit:contain;filter:drop-shadow(0 0 12px rgba(254,186,2,.4));}
   #pilot-central .pc-bar{flex:1;min-width:200px;height:12px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;}
@@ -166,15 +191,32 @@ function ensureCentral() {
   #pilot-central .pc-medal img{width:52px;height:52px;object-fit:contain;margin:0 3px;opacity:.22;filter:grayscale(1);}
   #pilot-central .pc-medal img.on{opacity:1;filter:none;}
   #pilot-central .pc-medal .n{font-size:11px;font-weight:700;color:var(--gold,#FEBA02);margin-bottom:6px;}
-  #pilot-central .pc-medal .r{font-size:9.5px;color:var(--text-mute);margin-top:5px;}
-  #pilot-central .pc-row{display:grid;grid-template-columns:44px 40px 1fr auto;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;}
-  #pilot-central .pc-row img{width:34px;height:48px;object-fit:contain;}
-  #pilot-central .pc-empty{text-align:center;color:#7a8a99;padding:30px;font-size:13px;}`;
+  #pilot-central .pc-medal .r{font-size:9.5px;color:#b9c8dd;margin-top:5px;}
+  #pilot-central .pc-row{display:grid;grid-template-columns:44px 40px 1fr auto;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:#E4EBFD;}
+  #pilot-central .pc-row img.ri{width:34px;height:48px;object-fit:contain;}
+  #pilot-central .pc-who{display:flex;align-items:center;gap:8px;min-width:0;}
+  #pilot-central .pc-photo{width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid rgba(254,186,2,.45);flex-shrink:0;background:rgba(228,235,253,.08);}
+  #pilot-central .pc-ini{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#00131a;flex-shrink:0;}
+  #pilot-central .pc-timg{width:20px;height:20px;object-fit:contain;filter:drop-shadow(0 0 4px rgba(254,186,2,.6));flex-shrink:0;}
+  #pilot-central .pc-nk{font-weight:700;color:#fff;min-width:0;} #pilot-central .pc-nk small{display:block;font-size:10px;color:#b9c8dd;font-weight:500;}
+  #pilot-central .pc-st{color:#b9c8dd;font-size:11.5px;text-align:right;}
+  #pilot-central .pc-empty{text-align:center;color:#7a8a99;padding:30px;font-size:13px;}
+  #pilot-central .pc-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  #pilot-central .pc-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(228,235,253,.05);color:#E4EBFD;cursor:pointer;font-size:11px;font-weight:700;transition:.15s;}
+  #pilot-central .pc-chip img{width:26px;height:26px;object-fit:contain;}
+  #pilot-central .pc-chip.on{border-color:#4cff8b;background:rgba(76,255,139,.15);box-shadow:0 0 10px rgba(76,255,139,.35);}
+  #pilot-central .pc-btn{margin-top:12px;padding:10px 22px;border:none;border-radius:8px;background:linear-gradient(135deg,#FEBA02,#c99000);color:#1a1200;font-weight:800;font-family:var(--font-display);cursor:pointer;}
+  #pilot-central .pc-me-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  #pilot-central .pc-avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--gold,#FEBA02);}
+  #pilot-central .pc-me-name{font-size:18px;font-weight:800;color:#fff;} #pilot-central .pc-me-rank{font-size:12px;color:var(--gold,#FEBA02);}
+  #pilot-central .pc-statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;text-align:center;font-size:12px;color:#b9c8dd;margin-top:14px;}
+  #pilot-central .pc-statgrid b{color:#fff;display:block;font-size:15px;}`;
   document.head.appendChild(st);
   document.body.appendChild(centralEl);
   return centralEl;
 }
 function pcEsc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function pcFmtT(s) { const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h > 0 ? h + 'h ' + m + 'min' : m + ' min'; }
 async function socialOpenRankingModal() {
   const el = ensureCentral();
   el.style.display = 'block';
@@ -187,31 +229,56 @@ async function socialOpenRankingModal() {
     if (isLoggedIn()) { try { me = await authFetch('/api/profile/me'); } catch (e) { me = null; } }
     draw();
   }
-  function fmtT(s) { const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h > 0 ? h + 'h ' + m + 'min' : m + ' min'; }
+  function photoHtml(p, size) {
+    if (p.photoUrl) return `<img class="pc-photo" style="width:${size}px;height:${size}px" src="${p.photoUrl}" onerror="this.outerHTML='<span class=&quot;pc-ini&quot; style=&quot;background:#FEBA02;width:${size}px;height:${size}px&quot;>${pcEsc((p.nickname || '?')[0].toUpperCase())}</span>'">`;
+    return `<span class="pc-ini" style="background:#0583F2;width:${size}px;height:${size}px">${pcEsc((p.nickname || '?')[0].toUpperCase())}</span>`;
+  }
+  function titlesHtml(list, cls) { return (list || []).map(t => `<img class="${cls}" src="img/${t.key.replace(/_/g, '-')}-${LVLN[t.level] || 'bronze'}.png" title="${pcEsc(MEDAL_NAMES[t.key] || t.key)}" onerror="this.style.display='none'">`).join(''); }
   function draw() {
     const body = document.getElementById('pc-body');
     if (tab === 'rank') {
       if (!data) { body.innerHTML = '<div class="pc-empty">Não deu pra carregar o ranking agora.</div>'; return; }
-      const T = [['topKills', '🎯 Maior Abatedor'], ['topBlimps', '🎈 Caçador de Dirigíveis'], ['topPlaytime', '⏱️ Mais Horas Voadas'], ['topWins', '👑 Mais Vitórias'], ['topMvps', '🏆 Mais MVPs']];
-      let h = '<div class="pc-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;">' + T.map(([k, lb]) => { const r = data.titles && data.titles[k]; return `<div style="text-align:center;"><div style="font-size:11px;color:var(--text-mute);">${lb}</div>${r ? `<div style="color:#4cff8b;font-weight:700;">👑 ${pcEsc(r.nickname)}</div><div style="font-size:11px;color:var(--gold);">${k === 'topPlaytime' ? fmtT(r.value) : r.value}</div>` : '<div style="color:#7a8a99;">—</div>'}</div>`; }).join('') + '</div>';
+      const T = [['topKills', '🎯', 'Maior Abatedor'], ['topBlimps', '🎈', 'Caçador de Dirigíveis'], ['topPlaytime', '⏱️', 'Mais Horas Voadas'], ['topWins', '👑', 'Mais Vitórias'], ['topMvps', '🏆', 'Mais MVPs']];
+      let h = '<div class="pc-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;text-align:center;">' + T.map(([k, lb]) => { const r = data.titles && data.titles[k]; return `<div><div style="font-size:11px;color:#b9c8dd;">${lb}</div>${r ? `<div style="color:#4cff8b;font-weight:700;">👑 ${pcEsc(r.nickname)}</div><div style="font-size:11px;color:var(--gold);">${k === 'topPlaytime' ? pcFmtT(r.value) : r.value}</div>` : '<div style="color:#7a8a99;">—</div>'}</div>`; }).join('') + '</div>';
       const L = (data.leaderboard || []).slice(0, 20);
-      h += '<div class="pc-card">' + (L.length ? L.map((p, i) => { const rk = RANKS.find(x => x.k === p.rankKey) || RANKS[0]; return `<div class="pc-row"><span style="font-weight:800;color:${i < 3 ? ['#FEBA02', '#cdd6e0', '#cd7f32'][i] : 'var(--text-mute)'};">${i < 3 ? ['🥇', '🥈', ''][i] : (i + 1) + 'º'}</span><img src="img/${rk.img}" onerror="this.style.visibility='hidden'"><span style="font-weight:700;">${pcEsc(p.nickname)}<div style="font-size:10px;color:var(--text-mute);font-weight:500;">${rk.n}</div></span><span style="color:var(--text-mute);font-size:11.5px;text-align:right;">⚔${p.kills} 💀${p.deaths} 🎈${p.blimp_kills}<br>${fmtT(p.playtime_seconds)}</span></div>`; }).join('') : '<div class="pc-empty">Ninguém jogou logado ainda — seja o primeiro!</div>') + '</div>';
+      h += '<div class="pc-card">' + (L.length ? L.map((p, i) => {
+        const rk = RANKS.find(x => x.k === p.rankKey) || RANKS[0];
+        return `<div class="pc-row"><span style="font-weight:800;color:${i < 3 ? ['#FEBA02', '#cdd6e0', '#cd7f32'][i] : '#b9c8dd'};">${i < 3 ? ['🥇', '🥈', '🥉'][i] : (i + 1) + 'º'}</span><img class="ri" src="img/${rk.img}" onerror="this.style.visibility='hidden'"><span class="pc-who">${titlesHtml(p.titles, 'pc-timg')}${photoHtml(p, 34)}<span class="pc-nk">${pcEsc(p.nickname)}<small>${rk.n}</small></span></span><span class="pc-st">⚔${p.kills} 💀${p.deaths} 🎈${p.blimp_kills}<br>${pcFmtT(p.playtime_seconds)}</span></div>`;
+      }).join('') : '<div class="pc-empty">Ninguém jogou logado ainda — seja o primeiro!</div>') + '</div>';
       body.innerHTML = h;
     } else if (tab === 'pat') {
       const cur = me ? me.rank.index : -1;
       body.innerHTML = '<div class="pc-card"><div class="pc-grid">' + RANKS.map((r, i) => `<div class="pc-rank ${i === cur ? 'now' : (i < cur ? 'have' : '')}"><img src="img/${r.img}" onerror="this.style.opacity=.2"><div class="n">${r.n}</div><div class="q">${r.q} abates</div></div>`).join('') + '</div></div>';
     } else if (tab === 'med') {
       const owned = {}; (me ? me.medals : []).forEach(m => owned[m.medal_key] = m.level);
-      let h = '<div class="pc-card"><div class="pc-grid">' + MEDALS.map(([k, n, r]) => { const lv = owned[k] || 0; return `<div class="pc-medal"><div class="n">${n}</div>${[0, 1, 2].map(i => `<img class="${lv >= i + 1 ? 'on' : ''}" src="img/${k.replace(/_/g, '-')}-${LVL[i]}.png" title="${LVL[i]}" onerror="this.style.opacity=${lv >= i + 1 ? 1 : .15}">`).join('')}<div class="r">${r}</div></div>`; }).join('') + '</div></div>';
-      h += '<div class="pc-card"><div style="font-size:12px;color:#c99bff;font-weight:700;margin-bottom:10px;">🔒 CONDECORAÇÕES SECRETAS</div><div class="pc-grid">' + SECRETS.map(([k, n, r]) => { const has = owned[k]; return `<div class="pc-medal" style="${has ? 'border-color:#c99bff;' : ''}"><div class="n" style="color:#c99bff;">${has ? n : '???'}</div><img class="${has ? 'on' : ''}" src="img/${k.replace(/_/g, '-')}.png" onerror="this.style.opacity=.15"><div class="r">${has ? r : 'Continue jogando para descobrir...'}</div></div>`; }).join('') + '</div></div>';
+      let h = '<div class="pc-card"><div class="pc-sub">🏅 CONDECORAÇÕES (Bronze / Prata / Ouro)</div><div class="pc-grid">' + Object.keys(MEDAL_NAMES).filter(k => !['fenix', 'kamikaze', 'tiro_perfeito', 'cacador_relampago', 'dominio_aereo', 'lenda_da_batalha_aerea'].includes(k)).map(k => { const lv = owned[k] || 0; return `<div class="pc-medal"><div class="n">${MEDAL_NAMES[k]}</div>${[1, 2, 3].map(i => `<img class="${lv >= i ? 'on' : ''}" src="img/${k.replace(/_/g, '-')}-${LVLN[i]}.png" onerror="this.style.opacity=${lv >= i ? 1 : .15}">`).join('')}<div class="r">${lv ? 'Nível: ' + LVLN[lv].toUpperCase() : 'Não conquistada'}</div></div>`; }).join('') + '</div></div>';
+      h += '<div class="pc-card"><div class="pc-sub" style="color:#c99bff;">🔒 SECRETAS</div><div class="pc-grid">' + ['fenix', 'kamikaze', 'tiro_perfeito', 'cacador_relampago', 'dominio_aereo', 'lenda_da_batalha_aerea'].map(k => { const has = owned[k]; return `<div class="pc-medal" style="${has ? 'border-color:#c99bff;' : ''}"><div class="n" style="color:#c99bff;">${has ? MEDAL_NAMES[k] : '???'}</div><img class="${has ? 'on' : ''}" src="img/${k.replace(/_/g, '-')}.png" onerror="this.style.opacity=.15"><div class="r">${has ? 'Conquistada!' : 'Continue jogando para descobrir...'}</div></div>`; }).join('') + '</div></div>';
       body.innerHTML = h;
     } else {
       if (!me) { body.innerHTML = '<div class="pc-empty">🔑 Faça login para ver sua carreira militar.<br>Sem conta, o jogo funciona 100% — mas abates, patentes e medalhas só contam para quem está logado.</div>'; return; }
-      const rk = me.rank; const next = rk.next;
-      const pct = next ? Math.min(100, Math.round(((rk.current - rk.at0 !== undefined ? rk.current : rk.current) / next.at) * 100)) : 100;
-      body.innerHTML = `<div class="pc-card"><div class="pc-rankrow"><img class="pc-rankimg" src="img/${rk.img}" onerror="this.style.opacity=.2"><div style="flex:1;min-width:220px;"><div style="font-size:18px;font-weight:800;color:var(--gold);">${rk.name}</div><div style="font-size:12px;color:var(--text-mute);margin:4px 0 8px;">⚔ ${rk.current} abates ${next ? `· faltam ${next.at - rk.current} para ${next.name}` : '· patente máxima alcançada!'}</div><div class="pc-bar"><div class="pc-barfill" style="width:${next ? Math.min(100, (rk.current / next.at) * 100) : 100}%"></div></div></div></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px;text-align:center;font-size:12px;">
-      <div>🛫 Partidas<br><b>${me.stats.matches_played}</b></div><div>⚔ Abates<br><b>${me.stats.kills}</b></div><div>💀 Mortes<br><b>${me.stats.deaths}</b></div><div>🎈 Dirigíveis<br><b>${me.stats.blimp_kills}</b></div><div>👑 Vitórias<br><b>${me.stats.wins}</b></div><div>🏆 MVPs<br><b>${me.stats.mvps}</b></div><div>⏱ Tempo de voo<br><b>${fmtT(me.stats.playtime_seconds)}</b></div><div>📅 Dias de login<br><b>${me.stats.login_days}</b></div></div></div>`;
+      const rk = me.rank;
+      const owned = me.medals.filter(m => m.level > 0);
+      let sel = (me.profile.selectedTitles || []).slice(0, 3);
+      function drawMe() {
+        const avatar = me.profile.photoUrl || ('img/piloto' + (me.profile.preferredPilot || 1) + '.png');
+        body.innerHTML = `<div class="pc-card"><div class="pc-me-row"><img class="pc-avatar" src="${avatar}" onerror="this.style.opacity=.3"><span style="display:flex;gap:4px;align-items:center;">${titlesHtml(sel.map(k => { const m = owned.find(x => x.medal_key === k); return m ? { key: k, level: m.level } : null; }).filter(Boolean), 'pc-timg')}</span><div><div class="pc-me-name">${pcEsc((typeof authState !== 'undefined' && authState.user) ? authState.user.nickname : 'Piloto')}</div><div class="pc-me-rank">🎖️ ${rk.name}${rk.next ? ` · faltam ${rk.next.at - rk.current} abates p/ ${rk.next.name}` : ' · patente máxima!'}</div></div></div>
+        <div class="pc-bar" style="width:100%"><div class="pc-barfill" style="width:${rk.next ? Math.min(100, (rk.current / rk.next.at) * 100) : 100}%"></div></div>
+        <div class="pc-statgrid"><div>🛫 Partidas<b>${me.stats.matches_played}</b></div><div>⚔ Abates<b>${me.stats.kills}</b></div><div>💀 Mortes<b>${me.stats.deaths}</b></div><div>🎈 Dirigíveis<b>${me.stats.blimp_kills}</b></div><div>👑 Vitórias<b>${me.stats.wins}</b></div><div>🏆 MVPs<b>${me.stats.mvps}</b></div><div>⏱ Voo<b>${pcFmtT(me.stats.playtime_seconds)}</b></div><div>📅 Logins<b>${me.stats.login_days}</b></div></div></div>
+        <div class="pc-card"><div class="pc-sub">🎖️ TÍTULOS EXIBIDOS — escolha até 3 (aparecem ao lado da sua foto no ranking)</div>
+        ${owned.length ? '<div class="pc-chips" id="pc-chips">' + owned.map(m => `<button class="pc-chip ${sel.includes(m.medal_key) ? 'on' : ''}" data-k="${m.medal_key}"><img src="img/${m.medal_key.replace(/_/g, '-')}-${LVLN[m.level]}.png" onerror="this.style.display='none'"><span>${MEDAL_NAMES[m.medal_key] || m.medal_key} (${LVLN[m.level]})</span></button>`).join('') + '</div><button class="pc-btn" id="pc-save-titles">💾 SALVAR TÍTULOS</button><div style="font-size:11px;color:#b9c8dd;margin-top:8px;">Selecionados: ' + sel.length + '/3</div>' : '<div class="pc-empty">Você ainda não conquistou nenhuma condecoração.</div>'}</div>`;
+        const chips = document.getElementById('pc-chips');
+        if (chips) chips.querySelectorAll('.pc-chip').forEach(c => c.onclick = () => {
+          const k = c.dataset.k;
+          if (sel.includes(k)) sel = sel.filter(x => x !== k);
+          else { if (sel.length >= 3) { if (typeof showTemporaryMessage === 'function') showTemporaryMessage('⚠️ Máximo de 3 títulos!', 1800); return; } sel.push(k); }
+          drawMe();
+        });
+        const sv = document.getElementById('pc-save-titles');
+        if (sv) sv.onclick = async () => {
+          try { await authFetch('/api/profile/settings', { method: 'POST', body: JSON.stringify({ selectedTitles: sel }) }); me.profile.selectedTitles = sel; if (typeof showTemporaryMessage === 'function') showTemporaryMessage('✅ Títulos salvos!', 1800); drawMe(); } catch (e) { if (typeof showTemporaryMessage === 'function') showTemporaryMessage('❌ ' + e.message, 2200); }
+        };
+      }
+      drawMe();
     }
   }
   load();
@@ -220,7 +287,6 @@ async function socialOpenRankingModal() {
 // ==================== TIRO PERFEITO (cliente reporta) ====================
 (function () {
   let streak = 0, pendingShot = false, pendingTimer = null;
-  const origPlay = window.playSound;
   function wrap() {
     const real = window.playSound;
     if (!real || real.__tpWrapped) return;
@@ -234,7 +300,7 @@ async function socialOpenRankingModal() {
     wrapped.__tpWrapped = true;
     window.playSound = wrapped;
   }
-  if (origPlay) wrap(); else document.addEventListener('DOMContentLoaded', wrap);
+  if (window.playSound) wrap(); else document.addEventListener('DOMContentLoaded', wrap);
 })();
 
 // ==================== INIT ====================
@@ -244,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (lbf) lbf.addEventListener('click', socialOpenFriendsModal);
   if (br) br.addEventListener('click', socialOpenRankingModal);
   if (cf) cf.addEventListener('click', socialCloseFriendsModal);
-  if (cr) cr.addEventListener('click', socialOpenRankingModal && (() => document.getElementById('modal-ranking')?.classList.add('hidden')));
+  if (cr) cr.addEventListener('click', () => document.getElementById('modal-ranking')?.classList.add('hidden'));
   if (sb) sb.addEventListener('click', socialDoFriendSearch);
   if (si) si.addEventListener('keypress', (e) => { if (e.key === 'Enter') socialDoFriendSearch(); });
 });

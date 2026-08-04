@@ -1,10 +1,12 @@
-// profile.js — carreira militar completa: stats + patentes + condecorações
+// profile.js — carreira militar completa + foto/piloto/títulos exibidos no ranking
+// CORREÇÃO DESTA VERSÃO: havia um "});" sobrado no final da rota
+// /api/profile/settings (depois do db.run da função apply) que causava
+// SyntaxError e impedia o servidor de INICIAR. Parênteses corrigidos.
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { db, authenticate } = require('./auth');
 
-// ==================== PATENTES (por abates) ====================
 const RANKS = [
   { k: 's2', n: 'Soldado de Segunda Classe (S2)', q: 0, img: 'soldado-de-segunda-classe(s2).png' },
   { k: 's1', n: 'Soldado de Primeira Classe (S1)', q: 25, img: 'soldado-de-primeira-classe(s1).png' },
@@ -24,14 +26,8 @@ const RANKS = [
   { k: 'mbrig', n: 'Major-Brigadeiro', q: 8000, img: 'major-brigadeiro.png' },
   { k: 'tbrig', n: 'Tenente-Brigadeiro', q: 10000, img: 'tenente-brigadeiro.png' },
 ];
-function rankFor(kills) {
-  let r = RANKS[0];
-  for (const x of RANKS) if (kills >= x.q) r = x;
-  return r;
-}
+function rankFor(kills) { let r = RANKS[0]; for (const x of RANKS) if (kills >= x.q) r = x; return r; }
 
-// ==================== CONDECORAÇÕES ====================
-// metric = função(stats, rankIndex) -> valor atual; th = [bronze, prata, ouro]
 const H = 3600;
 const MEDAL_DEFS = [
   { k: 'veterano_dos_ceus', th: [5 * H, 20 * H, 75 * H], m: s => s.playtime_seconds },
@@ -49,17 +45,17 @@ const MEDAL_DEFS = [
   { k: 'ultimo_no_ceu', th: [10, 50, 250], m: s => s.last_survivor },
   { k: 'primeiro_ataque', th: [10, 50, 250], m: s => s.first_bloods },
   { k: 'piloto_dedicado', th: [7, 30, 180], m: s => s.login_days },
-  { k: 'orgulho_da_esquadrilha', th: [3, 10, 16], m: (s, ri) => ri + 1 }, // índice da patente (0-based): 3=Sargento, 10=Capitão, 16=Tenente-Brigadeiro
+  { k: 'orgulho_da_esquadrilha', th: [3, 10, 16], m: (s, ri) => ri + 1 },
 ];
 const SECRET_KEYS = ['fenix', 'kamikaze', 'tiro_perfeito', 'cacador_relampago', 'dominio_aereo', 'lenda_da_batalha_aerea'];
-const CLIENT_REPORTABLE = ['tiro_perfeito'];
+const ALL_MEDAL_KEYS = MEDAL_DEFS.map(d => d.k).concat(SECRET_KEYS);
 
-// ==================== TABELAS + MIGRAÇÃO ====================
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS player_profile (
     user_id INTEGER PRIMARY KEY, preferred_plane TEXT DEFAULT 'cessna',
     sound_enabled INTEGER DEFAULT 1, music_enabled INTEGER DEFAULT 1,
-    photo_path TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    photo_path TEXT, preferred_pilot INTEGER DEFAULT NULL, selected_titles TEXT DEFAULT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
   db.run(`CREATE TABLE IF NOT EXISTS player_stats (
     user_id INTEGER PRIMARY KEY, matches_played INTEGER DEFAULT 0, kills INTEGER DEFAULT 0,
     deaths INTEGER DEFAULT 0, blimp_kills INTEGER DEFAULT 0, playtime_seconds INTEGER DEFAULT 0,
@@ -67,8 +63,7 @@ db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS player_medals (
     user_id INTEGER, medal_key TEXT, level INTEGER DEFAULT 0, unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, medal_key))`);
-  // migração de colunas novas (caso o banco já existisse)
-  const NEW_COLS = [
+  const NEW_STATS = [
     ['wins', 'INTEGER DEFAULT 0'], ['mvps', 'INTEGER DEFAULT 0'], ['bomb_kills', 'INTEGER DEFAULT 0'],
     ['missile_kills', 'INTEGER DEFAULT 0'], ['first_bloods', 'INTEGER DEFAULT 0'], ['last_survivor', 'INTEGER DEFAULT 0'],
     ['best_survival_streak', 'INTEGER DEFAULT 0'], ['current_survival_streak', 'INTEGER DEFAULT 0'],
@@ -78,21 +73,23 @@ db.serialize(() => {
   db.all('PRAGMA table_info(player_stats)', [], (err, rows) => {
     if (err || !rows) return;
     const have = rows.map(r => r.name);
-    NEW_COLS.forEach(([col, def]) => {
-      if (!have.includes(col)) db.run(`ALTER TABLE player_stats ADD COLUMN ${col} ${def}`);
-    });
+    NEW_STATS.forEach(([c, d]) => { if (!have.includes(c)) db.run(`ALTER TABLE player_stats ADD COLUMN ${c} ${d}`); });
+  });
+  const NEW_PROF = [['preferred_pilot', 'INTEGER DEFAULT NULL'], ['selected_titles', 'TEXT DEFAULT NULL']];
+  db.all('PRAGMA table_info(player_profile)', [], (err, rows) => {
+    if (err || !rows) return;
+    const have = rows.map(r => r.name);
+    NEW_PROF.forEach(([c, d]) => { if (!have.includes(c)) db.run(`ALTER TABLE player_profile ADD COLUMN ${c} ${d}`); });
   });
 });
 function ensureStatsRow(userId, cb) { db.run('INSERT OR IGNORE INTO player_stats (user_id) VALUES (?)', [userId], () => cb && cb()); }
 function ensureProfileRow(userId, cb) { db.run('INSERT OR IGNORE INTO player_profile (user_id) VALUES (?)', [userId], () => cb && cb()); }
 
-// ==================== AVALIAÇÃO DE MEDALHAS ====================
 function evaluateMedals(userId) {
   if (!userId) return;
   db.get('SELECT * FROM player_stats WHERE user_id = ?', [userId], (err, s) => {
     if (err || !s) return;
-    const rank = rankFor(s.kills || 0);
-    const rankIndex = RANKS.indexOf(rank);
+    const rankIndex = RANKS.indexOf(rankFor(s.kills || 0));
     db.all('SELECT medal_key, level FROM player_medals WHERE user_id = ?', [userId], (err2, rows) => {
       const owned = {}; (rows || []).forEach(r => owned[r.medal_key] = r.level);
       MEDAL_DEFS.forEach(def => {
@@ -101,10 +98,7 @@ function evaluateMedals(userId) {
         if (val >= def.th[2]) lvl = 3; else if (val >= def.th[1]) lvl = 2; else if (val >= def.th[0]) lvl = 1;
         if (lvl > (owned[def.k] || 0)) {
           db.run(`INSERT INTO player_medals (user_id, medal_key, level) VALUES (?,?,?)
-                  ON CONFLICT(user_id, medal_key) DO UPDATE SET level=excluded.level, unlocked_at=CURRENT_TIMESTAMP`, [userId, def.k, lvl], () => {
-            // Lenda da Batalha Aérea: todas as 16 em ouro
-            if (def.k === 'orgulho_da_esquadrilha' || true) checkLenda(userId);
-          });
+                  ON CONFLICT(user_id, medal_key) DO UPDATE SET level=excluded.level, unlocked_at=CURRENT_TIMESTAMP`, [userId, def.k, lvl], checkLenda.bind(null, userId));
         }
       });
     });
@@ -112,39 +106,28 @@ function evaluateMedals(userId) {
 }
 function checkLenda(userId) {
   db.all(`SELECT medal_key FROM player_medals WHERE user_id=? AND level=3 AND medal_key NOT IN ('lenda_da_batalha_aerea')`, [userId], (err, rows) => {
-    if (err) return;
-    const normal = MEDAL_DEFS.length; // 16 normais
-    if ((rows || []).length >= normal) {
-      db.run(`INSERT OR IGNORE INTO player_medals (user_id, medal_key, level) VALUES (?,?,1)`, [userId, 'lenda_da_batalha_aerea']);
-    }
+    if (!err && (rows || []).length >= MEDAL_DEFS.length) db.run(`INSERT OR IGNORE INTO player_medals (user_id, medal_key, level) VALUES (?,?,1)`, [userId, 'lenda_da_batalha_aerea']);
   });
 }
 function unlockSecret(userId, key) {
   if (!userId || !SECRET_KEYS.includes(key)) return;
-  if (key === 'tiro_perfeito' && !CLIENT_REPORTABLE.includes(key)) return;
   db.run(`INSERT OR IGNORE INTO player_medals (user_id, medal_key, level) VALUES (?,?,1)`, [userId, key]);
 }
 
-// ==================== REGISTROS DE EVENTO ====================
-const killTimes = new Map(); // userId -> [timestamps] (Caçador Relâmpago)
+const killTimes = new Map();
 function recordKill(userId, weaponType) {
   if (!userId) return;
   ensureStatsRow(userId, () => {
-    const bombSet = ['bomb', 'overdrive', 'light-trail-orb'];
-    const missSet = ['missile', 'ability-missile', 'normal'];
-    const isBomb = bombSet.includes(weaponType);
-    const isMiss = missSet.includes(weaponType);
-    db.run(`UPDATE player_stats SET kills=kills+1, bomb_kills=bomb_kills+?, missile_kills=missile_kills+?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
-      [isBomb ? 1 : 0, isMiss ? 1 : 0, userId], () => {
-        // Caçador Relâmpago: 3 abates em 20s
-        const now = Date.now();
-        const arr = (killTimes.get(userId) || []).filter(t => now - t < 20000);
-        arr.push(now); killTimes.set(userId, arr);
-        if (arr.length >= 3) unlockSecret(userId, 'cacador_relampago');
-        // Kamikaze: abate com explosão de dirigível
-        if (weaponType === 'blimp') unlockSecret(userId, 'kamikaze');
-        evaluateMedals(userId);
-      });
+    const isBomb = ['bomb', 'overdrive', 'light-trail-orb'].includes(weaponType);
+    const isMiss = ['missile', 'ability-missile', 'normal'].includes(weaponType);
+    db.run(`UPDATE player_stats SET kills=kills+1, bomb_kills=bomb_kills+?, missile_kills=missile_kills+?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?`, [isBomb ? 1 : 0, isMiss ? 1 : 0, userId], () => {
+      const now = Date.now();
+      const arr = (killTimes.get(userId) || []).filter(t => now - t < 20000);
+      arr.push(now); killTimes.set(userId, arr);
+      if (arr.length >= 3) unlockSecret(userId, 'cacador_relampago');
+      if (weaponType === 'blimp') unlockSecret(userId, 'kamikaze');
+      evaluateMedals(userId);
+    });
   });
 }
 function recordDeath(userId, damageTaken, aliveSeconds) {
@@ -162,28 +145,24 @@ function recordDeath(userId, damageTaken, aliveSeconds) {
 }
 function recordBlimpKill(userId) { if (!userId) return; ensureStatsRow(userId, () => db.run('UPDATE player_stats SET blimp_kills=blimp_kills+1 WHERE user_id=?', [userId], () => evaluateMedals(userId))); }
 function recordFirstBlood(userId) { if (!userId) return; ensureStatsRow(userId, () => db.run('UPDATE player_stats SET first_bloods=first_bloods+1 WHERE user_id=?', [userId], () => evaluateMedals(userId))); }
-// fim de partida (salas criadas): resume tudo de uma vez
 function recordMatchResults(userId, o) {
   if (!userId) return;
   ensureStatsRow(userId, () => {
     db.get('SELECT * FROM player_stats WHERE user_id=?', [userId], (err, s) => {
       if (err || !s) return;
       const streak = o.survived ? (s.current_survival_streak || 0) + 1 : 0;
-      db.run(`UPDATE player_stats SET
-        matches_played=matches_played+1, playtime_seconds=playtime_seconds+?,
+      db.run(`UPDATE player_stats SET matches_played=matches_played+1, playtime_seconds=playtime_seconds+?,
         wins=wins+?, mvps=mvps+?, last_survivor=last_survivor+?,
         current_survival_streak=?, best_survival_streak=MAX(best_survival_streak,?),
         best_alive_seconds=MAX(best_alive_seconds,?), updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
-        [Math.round(o.playtimeSeconds || 0), o.win ? 1 : 0, o.mvp ? 1 : 0, o.lastSurvivor ? 1 : 0,
-         streak, streak, Math.round(o.aliveSeconds || 0), userId], () => {
-        // Fênix: vencer após 5+ mortes no mesmo dia | Domínio Aéreo: vencer sem morrer
-        const today = new Date().toDateString();
-        if (o.win) {
-          if ((s.deaths_today_date === today ? (s.deaths_today || 0) : 0) >= 5) unlockSecret(userId, 'fenix');
-          if ((o.deathsInMatch || 0) === 0) unlockSecret(userId, 'dominio_aereo');
-        }
-        evaluateMedals(userId);
-      });
+        [Math.round(o.playtimeSeconds || 0), o.win ? 1 : 0, o.mvp ? 1 : 0, o.lastSurvivor ? 1 : 0, streak, streak, Math.round(o.aliveSeconds || 0), userId], () => {
+          const today = new Date().toDateString();
+          if (o.win) {
+            if ((s.deaths_today_date === today ? (s.deaths_today || 0) : 0) >= 5) unlockSecret(userId, 'fenix');
+            if ((o.deathsInMatch || 0) === 0) unlockSecret(userId, 'dominio_aereo');
+          }
+          evaluateMedals(userId);
+        });
     });
   });
 }
@@ -200,13 +179,34 @@ function recordLogin(userId) {
   });
 }
 
-// ==================== CONSULTAS ====================
+function parseSelectedTitles(raw) { try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a.slice(0, 3) : []; } catch (e) { return []; } }
+
 function getLeaderboard(cb) {
-  db.all(`SELECT u.nickname, s.* FROM player_stats s JOIN users u ON u.id=s.user_id
+  db.all(`SELECT u.nickname, s.*, p.photo_path, p.preferred_pilot, p.selected_titles
+          FROM player_stats s JOIN users u ON u.id=s.user_id
+          LEFT JOIN player_profile p ON p.user_id=s.user_id
           WHERE s.kills>0 OR s.matches_played>0 ORDER BY s.kills DESC LIMIT 20`, [], (err, rows) => {
     if (err) return cb(err, []);
-    (rows || []).forEach(r => { const rk = rankFor(r.kills || 0); r.rankKey = rk.k; r.rankName = rk.n; r.rankImg = rk.img; });
-    cb(null, rows || []);
+    rows = rows || [];
+    if (!rows.length) return cb(null, rows);
+    const ids = rows.map(r => r.user_id);
+    const ph = ids.map(() => '?').join(',');
+    db.all(`SELECT user_id, medal_key, level FROM player_medals WHERE user_id IN (${ph})`, ids, (err2, medals) => {
+      const byUser = {};
+      (medals || []).forEach(m => { (byUser[m.user_id] = byUser[m.user_id] || []).push(m); });
+      rows.forEach(r => {
+        const rk = rankFor(r.kills || 0);
+        r.rankKey = rk.k; r.rankName = rk.n; r.rankImg = rk.img;
+        r.photoUrl = r.photo_path ? `/uploads/avatars/${r.photo_path}` : (r.preferred_pilot ? `/img/piloto${r.preferred_pilot}.png` : null);
+        const owned = byUser[r.user_id] || [];
+        const sum = { b: 0, p: 0, o: 0 };
+        owned.forEach(m => { if (m.level === 1) sum.b++; else if (m.level === 2) sum.p++; else if (m.level === 3) sum.o++; });
+        r.medalSummary = sum;
+        const sel = parseSelectedTitles(r.selected_titles);
+        r.titles = sel.map(k => { const m = owned.find(x => x.medal_key === k && x.level > 0); return m ? { key: k, level: m.level } : null; }).filter(Boolean);
+      });
+      cb(null, rows);
+    });
   });
 }
 function getTitles(cb) {
@@ -221,7 +221,6 @@ function getTitles(cb) {
   keys.forEach(k => db.get(Q[k], [], (e, r) => { res[k] = r || null; if (--pend === 0) cb(null, res); }));
 }
 
-// ==================== ROTAS ====================
 const AVATAR_DIR = path.join(__dirname, 'public', 'uploads', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
 const upload = multer({
@@ -229,6 +228,7 @@ const upload = multer({
   limits: { fileSize: 3 * 1024 * 1024 },
   fileFilter: (r, f, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(f.mimetype)),
 });
+
 function mount(app) {
   app.get('/api/profile/me', authenticate, (req, res) => {
     recordLogin(req.user.id);
@@ -241,7 +241,11 @@ function mount(app) {
           const next = RANKS[idx + 1] || null;
           db.all('SELECT medal_key, level FROM player_medals WHERE user_id=?', [req.user.id], (e3, medals) => {
             res.json({
-              profile: { preferredPlane: profile.preferred_plane, soundEnabled: !!profile.sound_enabled, musicEnabled: !!profile.music_enabled, photoUrl: profile.photo_path ? `/uploads/avatars/${profile.photo_path}` : null },
+              profile: {
+                preferredPlane: profile.preferred_plane, soundEnabled: !!profile.sound_enabled, musicEnabled: !!profile.music_enabled,
+                photoUrl: profile.photo_path ? `/uploads/avatars/${profile.photo_path}` : null,
+                preferredPilot: profile.preferred_pilot || null, selectedTitles: parseSelectedTitles(profile.selected_titles),
+              },
               stats, rank: { key: rank.k, name: rank.n, img: rank.img, index: idx, next: next ? { key: next.k, name: next.n, img: next.img, at: next.q } : null, current: stats.kills || 0 },
               medals: medals || [],
             });
@@ -250,12 +254,28 @@ function mount(app) {
       });
     }));
   });
+  // ===== CORREÇÃO DE SINTAXE AQUI (antes tinha um "});" sobrado) =====
   app.post('/api/profile/settings', authenticate, (req, res) => {
-    const { preferredPlane, soundEnabled, musicEnabled } = req.body || {};
-    ensureProfileRow(req.user.id, () => db.run(
-      `UPDATE player_profile SET preferred_plane=COALESCE(?,preferred_plane), sound_enabled=COALESCE(?,sound_enabled), music_enabled=COALESCE(?,music_enabled), updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
-      [preferredPlane || null, soundEnabled === undefined ? null : (soundEnabled ? 1 : 0), musicEnabled === undefined ? null : (musicEnabled ? 1 : 0), req.user.id],
-      err => err ? res.status(500).json({ error: 'Erro.' }) : res.json({ ok: true })));
+    const { preferredPlane, soundEnabled, musicEnabled, preferredPilot, selectedTitles } = req.body || {};
+    ensureProfileRow(req.user.id, () => {
+      const apply = () => db.run(
+        `UPDATE player_profile SET preferred_plane=COALESCE(?,preferred_plane), sound_enabled=COALESCE(?,sound_enabled), music_enabled=COALESCE(?,music_enabled),
+         preferred_pilot=COALESCE(?,preferred_pilot), selected_titles=COALESCE(?,selected_titles), updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
+        [preferredPlane || null, soundEnabled === undefined ? null : (soundEnabled ? 1 : 0), musicEnabled === undefined ? null : (musicEnabled ? 1 : 0),
+         preferredPilot === undefined ? null : Math.min(16, Math.max(1, parseInt(preferredPilot, 10) || 1)),
+         selectedTitles === undefined ? null : JSON.stringify(selectedTitles), req.user.id],
+        (err) => (err ? res.status(500).json({ error: 'Erro.' }) : res.json({ ok: true }))
+      );
+      // valida títulos escolhidos: só medalhas que o jogador realmente possui
+      if (selectedTitles !== undefined) {
+        const wanted = Array.isArray(selectedTitles) ? selectedTitles.filter(k => ALL_MEDAL_KEYS.includes(k)).slice(0, 3) : [];
+        db.all('SELECT medal_key FROM player_medals WHERE user_id=? AND level>0', [req.user.id], (e, rows) => {
+          const owned = (rows || []).map(r => r.medal_key);
+          selectedTitles = wanted.filter(k => owned.includes(k));
+          apply();
+        });
+      } else apply();
+    });
   });
   app.post('/api/profile/photo', authenticate, (req, res) => {
     upload.single('photo')(req, res, (err) => {

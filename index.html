@@ -10,7 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{--navy:#011F44;--gold:#F2B705;--blue:#0583F2;--green:#63BD01;--purple:#50029A;--red:#ff5c5c;--text:#eaf2fb;--dim:#b8c8dd;--card:rgba(1,31,68,.55);--line:rgba(5,131,242,.25)}
-*{box-sizing:border-box}body{margin:0;background:url('public/img/fundo-site.png') no-repeat center top/cover fixed;color:var(--text);font-family:'Rajdhani',sans-serif;overflow-x:hidden}
+*{box-sizing:border-box}
+body{margin:0;background:url('public/img/fundo-site.png') no-repeat center top/cover;background-attachment:scroll;color:var(--text);font-family:'Rajdhani',sans-serif;overflow-x:hidden}
 h1,h2,h3,h4,.brand{font-family:'Orbitron',sans-serif}a{color:inherit;text-decoration:none}img{max-width:100%;display:block}button{font-family:inherit;cursor:pointer}::selection{background:var(--gold);color:#08131f}
 header{position:sticky;top:0;z-index:500;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 30px;background:rgba(1,31,68,.75);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);box-shadow:0 4px 30px rgba(0,0,0,.5);flex-wrap:wrap}
 .logo-wrap img{height:50px;filter:drop-shadow(0 0 12px rgba(5,131,242,.4))}
@@ -18,7 +19,9 @@ nav{display:flex;gap:26px;flex-wrap:wrap}nav a{font-family:'Orbitron';font-size:
 nav a::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:2px;background:var(--gold);transform:scaleX(0);transition:.3s;border-radius:2px}
 nav a:hover,nav a.active{color:var(--gold);text-shadow:0 0 18px rgba(242,183,5,.5)}nav a.active::after,nav a:hover::after{transform:scaleX(1)}
 .view{display:none}.view.active{display:block;animation:fade .4s ease}@keyframes fade{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6vw 4vw 2vw}
+.hero{display:flex;justify-content:flex-start;padding:6vw 4vw 2vw}
+.hero-inner{width:50%;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center}
+@media(max-width:900px){.hero-inner{width:100%}}
 .hero h1{margin:0;font-size:clamp(28px,4.4vw,50px);font-weight:900;text-shadow:0 4px 18px rgba(0,0,0,.7)}
 .hero h1 .w{display:block;color:#f4f8fd}.hero h1 .g{display:block;color:var(--gold);font-size:clamp(40px,6.2vw,72px);animation:pulse 2.5s infinite}
 @keyframes pulse{0%,100%{text-shadow:0 4px 30px rgba(242,183,5,.5)}50%{text-shadow:0 4px 45px rgba(242,183,5,.85),0 0 90px rgba(242,183,5,.5)}}
@@ -53,25 +56,252 @@ section{padding:50px 5vw;border-top:1px solid rgba(255,255,255,.04)}
 .banner h3{margin:0 0 4px;color:#fff;font-size:20px}.banner p{margin:0;color:#aebfd4;font-size:14px}
 .btn-primary{background:var(--blue);color:#fff;padding:12px 30px;border-radius:8px;font-family:'Orbitron';font-weight:700;font-size:13px;letter-spacing:1px;border:none;transition:.25s;display:inline-block}
 .btn-primary:hover{background:#046dc9;transform:scale(1.04)}
-/* RANKING */
-.rank-wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+.big-img{max-width:1000px;margin:0 auto;border-radius:16px;border:2px solid var(--line);box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.rank-wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:30px}
 .rank-live{display:flex;align-items:center;gap:10px;justify-content:center;font-size:13px;color:var(--dim)}
-.titles-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-.title-card{padding:18px;text-align:center}.title-card .ic{font-size:30px}.title-card .lb{font-family:'Orbitron';font-size:11px;letter-spacing:1px;color:var(--dim);margin:6px 0}.title-card .nm{color:var(--green);font-weight:700;font-size:16px}.title-card .vl{color:var(--gold);font-size:13px;margin-top:2px}
-.board{padding:10px 18px}.board-row{display:grid;grid-template-columns:52px 44px 1fr auto;gap:10px;align-items:center;padding:9px 6px;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px}
-.board-row .pos{font-family:'Orbitron';font-weight:800;color:var(--dim)}.board-row.top1 .pos{color:var(--gold)}.board-row.top2 .pos{color:#cdd6e0}.board-row.top3 .pos{color:#cd7f32}
-.board-row img{width:38px;height:52px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(242,183,5,.35))}
-.board-row .nk{font-weight:700}.board-row .st{color:var(--dim);font-size:12.5px;text-align:right}
+.titles-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.title-card{padding:18px;text-align:center}.title-card .ic{font-size:30px}.title-card .lb{font-family:'Orbitron';font-size:11px;letter-spacing:1px;color:var(--dim);margin:6px 0}.title-card .nm{color:var(--green);font-weight:700;font-size:15px}.title-card .vl{color:var(--gold);font-size:13px;margin-top:2px}
+.board{padding:16px 20px}
+
+/* ===== REORGANIZAÇÃO DO CARD DOS JOGADORES ===== */
+.board-row{
+  display:grid;
+  grid-template-columns:auto auto auto 1fr auto;
+  gap:14px;
+  align-items:center;
+  padding:14px 12px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  font-size:14px;
+  cursor:pointer;
+  transition:background .2s, border-color .2s;
+  min-height:68px;
+}
+.board-row:last-of-type{border-bottom:none}
+.board-row:hover{background:rgba(5,131,242,.08);border-color:rgba(5,131,242,.25)}
+
+/* Coluna 1: posição (🥇/1º/2º...) */
+.board-row .pos{
+  font-family:'Orbitron';
+  font-weight:800;
+  font-size:18px;
+  color:var(--dim);
+  width:44px;
+  text-align:center;
+  flex-shrink:0;
+}
+.board-row.top1 .pos{color:var(--gold);font-size:22px;text-shadow:0 0 12px rgba(242,183,5,.5)}
+.board-row.top2 .pos{color:#e0e8f0;font-size:20px}
+.board-row.top3 .pos{color:#cd7f32;font-size:20px}
+
+/* Coluna 2: insígnia da patente */
+.board-row .rimg{
+  width:38px;
+  height:52px;
+  object-fit:contain;
+  filter:drop-shadow(0 0 6px rgba(242,183,5,.35));
+  flex-shrink:0;
+}
+
+/* Coluna 3: foto do piloto */
+.board-row .pphoto{
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  object-fit:cover;
+  border:2px solid rgba(254,186,2,.5);
+  flex-shrink:0;
+  background:rgba(228,235,253,.08);
+  box-shadow:0 0 10px rgba(254,186,2,.2);
+}
+.board-row .pini{
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  font-size:18px;
+  color:#00131a;
+  flex-shrink:0;
+  border:2px solid rgba(254,186,2,.3);
+  box-shadow:0 0 10px rgba(254,186,2,.15);
+}
+
+/* Coluna 4: informações do piloto (nome + patente + títulos) */
+.board-row .who{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+  flex:1;
+}
+
+/* Linha de títulos escolhidos (com flex-wrap pra não sobrepor) */
+.board-row .titles-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  align-items:center;
+  min-height:0;
+}
+.board-row .timg{
+  width:24px;
+  height:24px;
+  object-fit:contain;
+  filter:drop-shadow(0 0 5px rgba(254,186,2,.6));
+  flex-shrink:0;
+  transition:transform .2s;
+}
+.board-row .timg:hover{transform:scale(1.25)}
+.board-row .titles-row:empty{display:none}
+
+/* Linha do nome + patente */
+.board-row .nk{
+  font-weight:700;
+  font-size:15px;
+  color:#fff;
+  min-width:0;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:8px;
+  line-height:1.2;
+}
+.board-row .nk .nickname{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width:220px;
+}
+.board-row .nk small{
+  font-size:11px;
+  color:var(--gold);
+  font-weight:600;
+  letter-spacing:.5px;
+  white-space:nowrap;
+  opacity:.85;
+}
+
+/* Coluna 5: stats (organizados em grid próprio) */
+.board-row .st{
+  display:grid;
+  grid-template-columns:repeat(2, auto);
+  gap:4px 12px;
+  color:var(--dim);
+  font-size:12.5px;
+  text-align:right;
+  padding-left:10px;
+  border-left:1px solid rgba(255,255,255,.08);
+  min-width:160px;
+  flex-shrink:0;
+}
+.board-row .st .stat{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:4px;
+  white-space:nowrap;
+}
+.board-row .st .stat b{
+  color:#fff;
+  font-weight:700;
+}
+.board-row .st .stat-time{
+  grid-column:1 / -1;
+  text-align:right;
+  font-size:11.5px;
+  opacity:.75;
+  margin-top:2px;
+  padding-top:2px;
+  border-top:1px dashed rgba(255,255,255,.06);
+}
+
+/* Detalhes expandidos ao clicar */
+.board-detail{
+  display:none;
+  padding:16px 20px 20px;
+  background:rgba(5,131,242,.07);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  font-size:13px;
+  color:var(--dim);
+  margin-top:-1px;
+}
+.board-detail.open{display:block;animation:fade .3s}
+.bd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;text-align:center}
+.bd-grid > div{
+  background:rgba(1,31,68,.5);
+  padding:8px 6px;
+  border-radius:8px;
+  border:1px solid rgba(5,131,242,.15);
+}
+.bd-grid b{color:#fff;display:block;font-size:16px;margin-top:3px}
+.bd-bar{height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;margin-top:6px}
+.bd-bar div{height:100%;background:linear-gradient(90deg,var(--gold),#ff8a00)}
+
 .offline-box{padding:40px;text-align:center;color:var(--dim)}.offline-box .ic{font-size:44px}
-/* PATENTES */
+
+/* ===== RESPONSIVO DO RANKING ===== */
+@media(max-width:780px){
+  .board{padding:10px 12px}
+  .board-row{
+    grid-template-columns:auto 1fr;
+    grid-template-areas:
+      "pos photo"
+      "pos info"
+      "pos stats";
+    gap:10px 14px;
+    padding:12px 10px;
+    align-items:start;
+  }
+  .board-row .pos{
+    grid-area:pos;
+    align-self:center;
+    width:40px;
+  }
+  .board-row .rimg{display:none} /* esconde insígnia no mobile pra caber */
+  .board-row .pphoto,
+  .board-row .pini{
+    grid-area:photo;
+    width:44px;
+    height:44px;
+  }
+  .board-row .who{
+    grid-area:info;
+  }
+  .board-row .st{
+    grid-area:stats;
+    grid-template-columns:repeat(2, auto);
+    min-width:0;
+    padding-left:0;
+    padding-top:8px;
+    border-left:none;
+    border-top:1px solid rgba(255,255,255,.08);
+    justify-content:flex-start;
+    text-align:left;
+    gap:4px 10px;
+  }
+  .board-row .st .stat{justify-content:flex-start}
+  .board-row .st .stat-time{text-align:left}
+  .board-row .nk .nickname{max-width:140px}
+}
+
+@media(max-width:480px){
+  .board-row .st{
+    grid-template-columns:1fr 1fr;
+    font-size:11.5px;
+  }
+  .bd-grid{grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px}
+  .bd-grid b{font-size:14px}
+}
+
 .rank-group{max-width:1180px;margin:0 auto 30px}.rank-group h3{font-family:'Orbitron';color:var(--blue);letter-spacing:1px;font-size:15px;border-left:5px solid var(--blue);padding-left:10px;margin:0 0 16px;text-shadow:0 2px 6px #000}
 .ranks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
-.rank-card{padding:14px 10px;text-align:center;cursor:pointer}
+.rank-card{padding:14px 10px;text-align:center}
 .rank-card img{width:74px;height:104px;object-fit:contain;margin:0 auto 8px;filter:drop-shadow(0 0 10px rgba(242,183,5,.25));transition:.3s}
 .rank-card:hover img{transform:scale(1.08);filter:drop-shadow(0 0 16px rgba(242,183,5,.55))}
 .rank-card .rn{font-family:'Orbitron';font-size:10.5px;font-weight:700;color:#fff;letter-spacing:.5px}
 .rank-card .rq{font-size:11px;color:var(--gold);margin-top:3px}.rank-card .rd{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.35}
-/* CONDECORAÇÕES */
 .medals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;max-width:1180px;margin:0 auto}
 .medal-card{padding:16px;text-align:center}
 .medal-card h4{margin:0 0 2px;font-size:14px;color:var(--gold)}.medal-card .q{font-size:12px;color:var(--dim);font-style:italic;min-height:30px}
@@ -82,28 +312,32 @@ section{padding:50px 5vw;border-top:1px solid rgba(255,255,255,.04)}
 .medal-req .b{background:rgba(205,127,50,.14);border:1px solid rgba(205,127,50,.4);color:#e8b28a}
 .medal-req .p{background:rgba(200,210,220,.1);border:1px solid rgba(200,210,220,.35);color:#dfe6ee}
 .medal-req .o{background:rgba(254,186,2,.12);border:1px solid rgba(254,186,2,.45);color:var(--gold)}
-.secret-card{border-color:rgba(80,2,154,.5);background:linear-gradient(160deg,rgba(1,31,68,.6),rgba(80,2,154,.35))}
-.secret-card h4{color:#c99bff}
-/* HANGAR */
+.secret-card{border-color:rgba(80,2,154,.5);background:linear-gradient(160deg,rgba(1,31,68,.6),rgba(80,2,154,.35))}.secret-card h4{color:#c99bff}
+.pilots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:12px;max-width:900px;margin:0 auto}
+.pilot-card{border-radius:50%;overflow:hidden;border:3px solid var(--line);transition:.25s;aspect-ratio:1}
+.pilot-card:hover{transform:scale(1.1);border-color:var(--gold);box-shadow:0 0 20px rgba(242,183,5,.5)}
+.pilot-card img{width:100%;height:100%;object-fit:cover}
 .hangar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;max-width:1180px;margin:0 auto}
 .plane-card{cursor:pointer}.plane-card img{width:100%;height:140px;object-fit:cover;background:rgba(1,31,68,.7)}
 .plane-card .pi{padding:12px 14px}.plane-card .ct{font-family:'Orbitron';font-size:9.5px;letter-spacing:1px;color:var(--gold)}
 .plane-card h4{margin:5px 0 3px;font-size:15px;color:#fff}.plane-card p{margin:0;font-size:12.5px;color:var(--dim)}
-/* MODAL */
-.modal-ov{position:fixed;inset:0;z-index:900;background:rgba(3,8,16,.82);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:22px}
-.modal-ov.open{display:flex}.modal-box{max-width:640px;width:100%;max-height:84vh;overflow-y:auto;background:rgba(1,31,68,.94);border:1px solid var(--line);border-radius:18px;padding:0 0 26px}
+.modal-ov{position:fixed;inset:0;z-index:900;background:rgba(3,8,16,.85);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:22px}
+.modal-ov.open{display:flex}.modal-box{max-width:700px;width:100%;max-height:86vh;overflow-y:auto;background:rgba(1,31,68,.96);border:1px solid var(--line);border-radius:18px;padding:0 0 26px;position:relative}
 .modal-box img.cover{width:100%;height:200px;object-fit:cover;border-radius:18px 18px 0 0}
-.modal-box .inner{padding:22px 26px 0}.modal-close{position:sticky;top:10px;float:right;margin:10px 12px 0 0;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:18px}
+.modal-box .inner{padding:22px 26px 0}.modal-close{position:sticky;top:10px;float:right;margin:10px 12px 0 0;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:18px;z-index:5}
 .modal-close:hover{background:var(--red)}
 .modal-box h3{color:var(--gold);font-size:22px;margin:0 0 6px}.modal-box p{color:#d3e0ee;line-height:1.65;font-size:15px;white-space:pre-line}
 .spec-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
 .spec-table td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
 .spec-table td:first-child{color:var(--dim);width:45%}.spec-table td:last-child{color:#fff;font-weight:600}
+.power-img{width:100%;aspect-ratio:16/7;object-fit:cover;border-radius:12px;border:1px solid var(--line);box-shadow:0 0 25px rgba(254,186,2,.25);animation:pw 2.4s infinite}
+@keyframes pw{0%,100%{box-shadow:0 0 18px rgba(254,186,2,.2)}50%{box-shadow:0 0 34px rgba(254,186,2,.5)}}
+.pm-bars{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.pm-bar{display:grid;grid-template-columns:110px 1fr 40px;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+.pm-bar .tr{height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden}
+.pm-bar .tr div{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:5px;transition:width 1s cubic-bezier(.2,.8,.2,1)}
 footer{padding:34px 5vw;text-align:center;border-top:1px solid rgba(255,255,255,.06)}
-footer img{height:44px;margin:0 auto 10px}.footer-social{display:flex;gap:10px;justify-content:center;margin-top:12px}
-.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--line);background:rgba(1,31,68,.5);color:var(--dim);transition:.25s}
-.icon-btn:hover{color:var(--gold);border-color:var(--gold);transform:translateY(-2px)}
-.icon-btn svg{width:18px;height:18px}
+footer img{height:44px;margin:0 auto 10px}
 </style>
 </head>
 <body>
@@ -116,18 +350,17 @@ footer img{height:44px;margin:0 auto 10px}.footer-social{display:flex;gap:10px;j
     <a data-view="sobre">SOBRE</a>
     <a data-view="contato">CONTATO</a>
   </nav>
-  <div class="icon-btn" title="Sistema de login em breve">🔒</div>
+  <div class="icon-btn" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--line);background:rgba(1,31,68,.5);color:var(--dim)" title="Sistema de login disponível no jogo">🔒</div>
 </header>
 
-<!-- INÍCIO -->
 <main class="view active" id="view-inicio">
-  <div class="hero">
+  <div class="hero"><div class="hero-inner">
     <h1><span class="w">PREPARE-SE PARA A</span><span class="g">BATALHA!</span></h1>
     <p>Comande poderosos aviões, suba na hierarquia militar, conquiste condecorações e domine os céus!</p>
-    <a class="play-btn" id="play-btn-link" href="#" target="_blank" rel="noopener"><img src="public/img/botao-jogar.png" alt="JOGAR AGORA" onerror="this.outerHTML='<span class=&quot;btn-primary&quot; style=&quot;font-size:22px;padding:20px 44px&quot;>🛫 JOGAR AGORA!</span>'"></a>
+    <a class="play-btn" id="play-btn-link" href="#" target="_blank" rel="noopener"><img src="public/img/BOTÃO-JOGAR-AGORA.png" alt="JOGAR AGORA!" onerror="this.outerHTML='<span class=&quot;btn-primary&quot; style=&quot;font-size:22px;padding:20px 44px&quot;>🛫 JOGAR AGORA!</span>'"></a>
     <div class="status-line"><span class="dot checking" id="hero-dot"></span><span id="hero-text">Verificando servidor...</span></div>
-  </div>
-  <section><h2 class="sec-title" style="display:flex">NOTÍCIAS E ATUALIZAÇÕES</h2><div class="news-grid" id="news-home"></div></section>
+  </div></div>
+  <section><div class="sec-title"><h2>NOTÍCIAS E ATUALIZAÇÕES</h2></div><div class="news-grid" id="news-home"></div></section>
   <section>
     <div class="two-col">
       <div class="card panel"><h3>SOBRE O JOGO</h3><p>Batalha Aérea é um jogo de simulação e combate multiplayer onde você pilota aviões incríveis em missões eletrizantes contra outros jogadores em tempo real. Suba de patente a cada abate, colecione condecorações de Bronze, Prata e Ouro e seja o ás dos céus.</p></div>
@@ -146,51 +379,46 @@ footer img{height:44px;margin:0 auto 10px}.footer-social{display:flex;gap:10px;j
   <footer><img src="public/img/logo.png" alt=""><div style="color:var(--dim);font-size:13px">© 2026 Batalha Aérea. Todos os direitos reservados.</div></footer>
 </main>
 
-<!-- NOTÍCIAS -->
 <main class="view" id="view-noticias">
   <div class="page-header"><h1>NOTÍCIAS</h1><p>Todas as atualizações e novidades do Batalha Aérea.</p></div>
   <section><div class="news-grid" id="news-full"></div></section>
   <footer><div style="color:var(--dim);font-size:13px">© 2026 Batalha Aérea. Todos os direitos reservados.</div></footer>
 </main>
 
-<!-- RANKING & PATENTES -->
 <main class="view" id="view-ranking">
-  <div class="page-header"><h1>RANKING &amp; PATENTES</h1><p>Sua carreira militar completa: patente atual, condecorações e os melhores pilotos do servidor — ao vivo.</p></div>
+  <div class="page-header"><h1>RANKING &amp; PATENTES</h1><p>Os melhores pilotos do servidor ao vivo — com foto, patente e títulos escolhidos — e a galeria completa de patentes e condecorações.</p></div>
   <section>
     <div class="rank-wrap">
       <div class="rank-live"><span class="dot checking" id="rank-dot"></span><span id="rank-status">Consultando servidor...</span></div>
       <div class="titles-grid" id="titles-grid"></div>
       <div class="card board" id="board"></div>
+      <div style="text-align:center"><div class="sec-title"><h2>🛩️ PATENTES</h2></div><img src="public/img/niveis.png" alt="Hierarquia de Patentes" class="big-img"></div>
+      <div style="text-align:center"><div class="sec-title"><h2>🛩️ TÍTULOS</h2></div><img src="public/img/titulos.png" alt="Condecorações" class="big-img"></div>
     </div>
-  </section>
-  <section><h2 class="sec-title"><h2>HIERARQUIA DE PATENTES</h2></h2>
-    <p style="text-align:center;color:var(--dim);max-width:760px;margin:0 auto 30px;font-size:15px">Todo piloto começa como <b style="color:var(--gold)">Soldado de Segunda Classe</b> e sobe na hierarquia acumulando abates. Cada patente exibe sua insígnia ao lado do seu avatar no jogo — e inspira todos ao seu redor.</p>
-    <div id="ranks-sections"></div>
-  </section>
-  <section><h2 class="sec-title"><h2>CONDECORAÇÕES</h2></h2>
-    <p style="text-align:center;color:var(--dim);max-width:760px;margin:0 auto 30px;font-size:15px">Complete desafios para conquistar medalhas com 3 níveis de honra: <b style="color:#e8b28a">Bronze</b>, <b style="color:#dfe6ee">Prata</b> e <b style="color:var(--gold)">Ouro</b>. As <b style="color:#c99bff">secretas</b> só aparecem quando conquistadas.</p>
-    <div class="medals-grid" id="medals-grid"></div>
   </section>
   <footer><div style="color:var(--dim);font-size:13px">© 2026 Batalha Aérea. Todos os direitos reservados.</div></footer>
 </main>
 
-<!-- SOBRE -->
 <main class="view" id="view-sobre">
   <div class="page-header"><h1>SOBRE O BATALHA AÉREA</h1></div>
   <section style="padding-top:10px"><div class="card" style="max-width:1180px;margin:0 auto"><img src="public/img/outdor1.png" alt="" style="width:100%;border-radius:16px"></div>
-    <p style="max-width:860px;margin:26px auto 0;text-align:center;color:#d3e0ee;font-size:16px;line-height:1.7">Batalha Aérea é um jogo multiplayer de combate aéreo feito em navegador, sem instalar nada. Você escolhe um piloto e um avião entre <b style="color:var(--gold)">15 aeronaves</b>, entra em sala com outros jogadores e enfrenta o time adversário (ou todo mundo, na Sala Livre) com mísseis, bombas e habilidades especiais únicas. Conta com chat de voz, clima dinâmico, dirigível abatível e agora <b style="color:var(--gold)">carreira militar completa</b>: 17 patentes e 22 condecorações.</p>
+    <p style="max-width:860px;margin:26px auto 0;text-align:center;color:#d3e0ee;font-size:16px;line-height:1.7">Batalha Aérea é um jogo multiplayer de combate aéreo feito em navegador, sem instalar nada. Você escolhe um piloto e um avião entre <b style="color:var(--gold)">15 aeronaves</b>, entra em sala com outros jogadores e enfrenta o time adversário (ou todo mundo, na Sala Livre) com mísseis, bombas e habilidades especiais únicas. Conta com chat de voz, clima dinâmico, dirigível abatível e carreira militar completa: <b style="color:var(--gold)">17 patentes e 22 condecorações</b>.</p>
   </section>
-  <section><h2 class="sec-title"><h2>🛩️ HANGAR — FICHA TÉCNICA</h2></h2>
-    <p style="text-align:center;color:var(--dim);margin:0 0 26px;font-size:14px">Clique em uma aeronave para ver a ficha técnica real (ano, país, velocidade e curiosidades).</p>
+  <section><div class="sec-title"><h2>🛩️ HANGAR — FICHA TÉCNICA</h2></div>
+    <p style="text-align:center;color:var(--dim);margin:0 0 26px;font-size:14px">Clique em uma aeronave para expandir a ficha técnica real + o poder especial dela no jogo.</p>
     <div class="hangar-grid" id="hangar-grid"></div>
   </section>
-   <section><h2 class="sec-title"><h2>🛩️ PATENTES</h2></h2>
-    div class="card" style="max-width:1180px;margin:0 auto"><img src="public/img/niveis.png" alt="" style="width:100%;border-radius:16px"></div>
-    <div class="hangar-grid" id="hangar-grid"></div>
+  <section><div class="sec-title"><h2>👨‍✈️ ESCOLHA SEU PILOTO — 15 AVATARES</h2></div>
+    <p style="text-align:center;color:var(--dim);margin:0 0 26px;font-size:14px">Sem login você escolhe entre 15 avatares irados pra te representar na batalha — com login, ainda pode usar sua própria foto!</p>
+    <div class="pilots-grid" id="pilots-grid"></div>
   </section>
-   <section><h2 class="sec-title"><h2>🛩️ TITULOS</h2></h2>
-    div class="card" style="max-width:1180px;margin:0 auto"><img src="public/img/titulos.png" alt="" style="width:100%;border-radius:16px"></div>
-    <div class="hangar-grid" id="hangar-grid"></div>
+  <section><div class="sec-title"><h2>🎖️ HIERARQUIA DE PATENTES</h2></div>
+    <p style="text-align:center;color:var(--dim);max-width:760px;margin:0 auto 30px;font-size:15px">Todo piloto começa como <b style="color:var(--gold)">Soldado de Segunda Classe</b> e sobe na hierarquia acumulando abates. Cada patente exibe sua insígnia ao lado do seu avatar no jogo.</p>
+    <div id="ranks-sections"></div>
+  </section>
+  <section><div class="sec-title"><h2>🏅 CONDECORAÇÕES</h2></div>
+    <p style="text-align:center;color:var(--dim);max-width:760px;margin:0 auto 30px;font-size:15px">Complete desafios para conquistar medalhas com 3 níveis de honra: <b style="color:#e8b28a">Bronze</b>, <b style="color:#dfe6ee">Prata</b> e <b style="color:var(--gold)">Ouro</b>. As <b style="color:#c99bff">secretas</b> só aparecem quando conquistadas. Você pode exibir até 3 títulos ao lado do seu avatar no ranking!</p>
+    <div class="medals-grid" id="medals-grid"></div>
   </section>
   <section>
     <div class="card panel" style="max-width:900px;margin:0 auto;text-align:center"><h3>Feito por Emerson Gabriel Alves de Souza</h3><p style="text-align:left">Criei o Batalha Aérea pra jogar com meus amigos, me divertir e, principalmente, aprender. Comecei escrevendo tudo em Three.js na mão; com o tempo entraram ferramentas de IA pra ajudar nos modelos, mas boa parte continua sendo trabalho manual, ajuste por ajuste. Hoje o jogo mistura várias tecnologias novas pra mim — como o chat de voz e o sistema de carreira militar — tudo fazendo parte do processo de aprender construindo.</p></div>
@@ -198,7 +426,6 @@ footer img{height:44px;margin:0 auto 10px}.footer-social{display:flex;gap:10px;j
   <footer><div style="color:var(--dim);font-size:13px">© 2026 Batalha Aérea. Todos os direitos reservados.</div></footer>
 </main>
 
-<!-- CONTATO -->
 <main class="view" id="view-contato">
   <div class="page-header"><h1>CONTATO</h1></div>
   <section><div class="two-col" style="max-width:760px">
@@ -212,8 +439,8 @@ footer img{height:44px;margin:0 auto 10px}.footer-social{display:flex;gap:10px;j
 <div class="modal-ov" id="plane-modal"><div class="modal-box"><button class="modal-close" id="plane-close">×</button><div class="inner"><span class="tag" id="pm-cat"></span><h3 id="pm-name"></h3><div id="pm-body"></div></div></div></div>
 
 <script>
-const GAME_LINK = "https://rational-reveals-chronicle-scholars.trycloudflare.com";
-/* ============ PATENTES ============ */
+const GAME_LINK = "https://damaged-perspectives-inkjet-food.trycloudflare.com";
+const LVLN = {1:'bronze',2:'prata',3:'ouro'};
 const RANKS=[
 {k:'s2',n:'Soldado de Segunda Classe (S2)',g:'Soldados',q:0,img:'soldado-de-segunda-classe(s2).png',d:'O ponto de partida de toda grande história nos céus.'},
 {k:'s1',n:'Soldado de Primeira Classe (S1)',g:'Soldados',q:25,img:'soldado-de-primeira-classe(s1).png',d:'Provou que não está aqui por acaso.'},
@@ -232,7 +459,6 @@ const RANKS=[
 {k:'brig',n:'Brigadeiro',g:'Oficiais-Generais',q:6500,img:'brigadeiro.png',d:'Comanda frotas inteiras.'},
 {k:'mbrig',n:'Major-Brigadeiro',g:'Oficiais-Generais',q:8000,img:'major-brigadeiro.png',d:'Nome de peso na história da aviação.'},
 {k:'tbrig',n:'Tenente-Brigadeiro',g:'Oficiais-Generais',q:10000,img:'tenente-brigadeiro.png',d:'O topo absoluto dos céus.'}];
-/* ============ CONDECORAÇÕES ============ */
 const MEDALS=[
 {k:'veterano-dos-ceus',n:'Veterano dos Céus',q:'Os céus conhecem seu nome.',r:['5 horas de voo','20 horas','75 horas']},
 {k:'as-dos-ceus',n:'Ás dos Céus',q:'Cada alvo abatido escreve mais um capítulo da sua história.',r:['50 abates','250 abates','1000 abates']},
@@ -257,95 +483,119 @@ const SECRETS=[
 {k:'cacador-relampago',n:'Caçador Relâmpago',q:'Faça três abates em menos de 20 segundos.'},
 {k:'dominio-aereo',n:'Domínio Aéreo',q:'Vença uma partida sem morrer.'},
 {k:'lenda-da-batalha-aerea',n:'Lenda da Batalha Aérea',q:'Conquiste todas as medalhas Ouro.'}];
-/* ============ HANGAR ============ */
 const PLANES=[
-{n:'14-Bis',c:'Hélice clássica',img:'public/img/quatorzebis-realista-card.png',ano:'1906',pais:'França / Brasil (Santos-Dumont)',vel:'57 km/h',teto:'~6 m',cur:'Primeiro avião a decolar por meios próprios na Europa — o berço da aviação.'},
-{n:'Cessna 172',c:'Hélice',img:'public/img/cessna-realista-card.png',ano:'1956',pais:'EUA',vel:'302 km/h',teto:'4.267 m',cur:'O avião mais produzido da história: mais de 44.000 unidades.'},
-{n:'Hilson Bi-Mono',c:'Biplano',img:'public/img/biplano-realista-card.png',ano:'1938 (projeto experimental)',pais:'Brasil',vel:'~220 km/h',teto:'5.500 m',cur:'Biplano artesanal da esquadrilha — ágil e valente como os pioneiros.'},
-{n:'ATR Bimotor',c:'Bimotor',img:'public/img/bimotor-realista-card.png',ano:'1988',pais:'França / Itália',vel:'510 km/h',teto:'7.600 m',cur:'O cavalo de batalha das rotas regionais de todo o mundo.'},
-{n:'Piper Seneca',c:'Turboélice',img:'public/img/seneca-realista-card.png',ano:'1971',pais:'EUA',vel:'402 km/h',teto:'7.620 m',cur:'Bimotor leve famoso pela confiabilidade em viagens longas.'},
-{n:'JAS 39 Gripen',c:'Caça',img:'public/img/jato-realista-card.png',ano:'1988',pais:'Suécia',vel:'2.470 km/h (Mach 2)',teto:'16.000 m',cur:'Caça da FAB — projetado para ser barato de operar e fácil de manobrar.'},
-{n:'A-1A AMX',c:'Ataque',img:'public/img/amx-realista-card.png',ano:'1986',pais:'Itália / Brasil',vel:'1.160 km/h',teto:'13.000 m',cur:'O vetor de ataque ao solo da Força Aérea Brasileira.'},
-{n:'F-22 Raptor',c:'Caça superior',img:'public/img/f22-realista-card.png',ano:'2005',pais:'EUA',vel:'2.414 km/h',teto:'19.812 m',cur:'Dominância aérea com empuxo vetorizado — nenhum outro vira como ele.'},
-{n:'SR-71 Blackbird',c:'Alta performance',img:'public/img/sr71-realista-card.png',ano:'1966',pais:'EUA',vel:'3.540 km/h (Mach 3.3)',teto:'25.900 m',cur:'O avião mais rápido da história — nunca foi abatido.'},
-{n:'Airbus A380',c:'Comercial',img:'public/img/boing-realista-card.png',ano:'2005',pais:'Europa',vel:'1.020 km/h',teto:'13.100 m',cur:'O maior avião de passageiros já construído: dois andares inteiros.'},
-{n:'Boeing 737',c:'Comercial',img:'public/img/b737-realista-card.png',ano:'1967',pais:'EUA',vel:'876 km/h',teto:'11.300 m',cur:'O jato comercial mais vendido da história.'},
-{n:'B-2 Spirit',c:'Furtivo',img:'public/img/b2spirit-realista-card.png',ano:'1997',pais:'EUA',vel:'1.010 km/h',teto:'15.200 m',cur:'Bombardeiro stealth: custa mais de US$ 1 bilhão por unidade.'},
-{n:'Helicóptero',c:'Rotor',img:'public/img/heli-realista-card.png',ano:'1974',pais:'EUA',vel:'295 km/h',teto:'5.790 m',cur:'Asas rotativas: paira, sobe na vertical e voa pra trás.'},
-{n:'OVNI',c:'Espacial',img:'public/img/ovni-realista-card.png',ano:'????',pais:'[DADO CLASSIFICADO]',vel:'impossível de calcular',teto:'???',cur:'Objeto não identificado. Apenas apareceu no hangar. Ninguém pergunta.'},
-{n:'X-Wing',c:'Espacial',img:'public/img/xwing-realista-card.png',ano:'1977 (numa galáxia muito distante)',pais:'Incom Corporation',vel:'1.050 km/h',teto:'orbital',cur:'O caça estelar que destruiu duas Estrelas da Morte.'}];
-/* ============ NOTÍCIAS ============ */
+{n:'14-Bis',c:'Hélice clássica',img:'public/img/quatorzebis-realista-card.png',poder:1,ano:'1906',pais:'França / Brasil (Santos-Dumont)',vel:'57 km/h',teto:'~6 m',cur:'Primeiro avião a decolar por meios próprios na Europa — o berço da aviação.',s:[31,39,80]},
+{n:'Cessna 172',c:'Hélice',img:'public/img/cessna-realista-card.png',poder:2,ano:'1956',pais:'EUA',vel:'302 km/h',teto:'4.267 m',cur:'O avião mais produzido da história: mais de 44.000 unidades.',s:[50,41,78]},
+{n:'Hilson Bi-Mono',c:'Biplano',img:'public/img/biplano-realista-card.png',poder:3,ano:'1938 (experimental)',pais:'Brasil',vel:'~220 km/h',teto:'5.500 m',cur:'Biplano artesanal da esquadrilha — ágil e valente como os pioneiros.',s:[72,41,75]},
+{n:'ATR Bimotor',c:'Turboélice',img:'public/img/bimotor-realista-card.png',poder:4,ano:'1988',pais:'França / Itália',vel:'510 km/h',teto:'7.600 m',cur:'O cavalo de batalha das rotas regionais de todo o mundo.',s:[75,31,85]},
+{n:'Piper Seneca',c:'Bimotor leve',img:'public/img/seneca-realista-card.png',poder:5,ano:'1971',pais:'EUA',vel:'402 km/h',teto:'7.620 m',cur:'Famoso pela confiabilidade em viagens longas.',s:[59,33,80]},
+{n:'JAS 39 Gripen',c:'Caça',img:'public/img/jato-realista-card.png',poder:6,ano:'1988',pais:'Suécia',vel:'2.470 km/h (Mach 2)',teto:'16.000 m',cur:'Caça da FAB — barato de operar e extremamente manobrável.',s:[94,31,70]},
+{n:'A-1A AMX',c:'Ataque',img:'public/img/amx-realista-card.png',poder:7,ano:'1986',pais:'Itália / Brasil',vel:'1.160 km/h',teto:'13.000 m',cur:'O vetor de ataque ao solo da Força Aérea Brasileira.',s:[84,30,72]},
+{n:'F-22 Raptor',c:'Caça superior',img:'public/img/f22-realista-card.png',poder:8,ano:'2005',pais:'EUA',vel:'2.414 km/h',teto:'19.812 m',cur:'Empuxo vetorizado — nenhum outro vira como ele.',s:[94,41,65]},
+{n:'SR-71 Blackbird',c:'Alta performance',img:'public/img/sr71-realista-card.png',poder:9,ano:'1966',pais:'EUA',vel:'3.540 km/h (Mach 3.3)',teto:'25.900 m',cur:'O avião mais rápido da história — nunca foi abatido.',s:[97,31,60]},
+{n:'Airbus A380',c:'Comercial',img:'public/img/boing-realista-card.png',poder:10,ano:'2005',pais:'Europa',vel:'1.020 km/h',teto:'13.100 m',cur:'O maior avião de passageiros já construído.',s:[94,41,88]},
+{n:'Boeing 737',c:'Comercial',img:'public/img/b737-realista-card.png',poder:11,ano:'1967',pais:'EUA',vel:'876 km/h',teto:'11.300 m',cur:'O jato comercial mais vendido da história.',s:[88,35,86]},
+{n:'B-2 Spirit',c:'Furtivo',img:'public/img/b2spirit-realista-card.png',poder:12,ano:'1997',pais:'EUA',vel:'1.010 km/h',teto:'15.200 m',cur:'Bombardeiro stealth: mais de US$ 1 bilhão por unidade.',s:[97,45,84]},
+{n:'Helicóptero',c:'Rotor',img:'public/img/heli-realista-card.png',poder:13,ano:'1974',pais:'EUA',vel:'295 km/h',teto:'5.790 m',cur:'Asas rotativas: paira, sobe na vertical e voa pra trás.',s:[62,50,90]},
+{n:'OVNI',c:'Espacial',img:'public/img/ovni-realista-card.png',poder:14,ano:'????',pais:'[DADO CLASSIFICADO]',vel:'impossível de calcular',teto:'???',cur:'Apenas apareceu no hangar. Ninguém pergunta.',s:[94,94,55]},
+{n:'X-Wing',c:'Espacial',img:'public/img/xwing-realista-card.png',poder:15,ano:'1977 (galáxia muito distante)',pais:'Incom Corporation',vel:'1.050 km/h',teto:'orbital',cur:'O caça estelar que destruiu duas Estrelas da Morte.',s:[97,100,52]}];
 const NEWS=[
-{img:'public/img/niveis.png',tag:'ATUALIZAÇÃO 3.0',title:'Sistema de Patentes e Condecorações chegou!',date:'04/08/2026',short:'Suba de Soldado a Tenente-Brigadeiro e colecione 22 medalhas.',full:'Agora o Batalha Aérea tem CARREIRA MILITAR completa! São 17 patentes — de Soldado de Segunda Classe até Tenente-Brigadeiro — cada uma com sua insígnia exibida ao lado do seu avatar.\n\nJunto chegam 22 condecorações com níveis Bronze, Prata e Ouro: Veterano dos Céus, Ás dos Céus, Mestre da Sobrevivência, Abatedor de Dirigíveis e muito mais — incluindo 6 medalhas SECRETAS que só aparecem quando conquistadas (Fênix, Kamikaze, Tiro Perfeito, Caçador Relâmpago, Domínio Aéreo e Lenda da Batalha Aérea).\n\nCrie sua conta no jogo, jogue logado e comece a construir sua história: o ranking ao vivo do site mostra os maiores ases, suas patentes e títulos em tempo real!'},
-{img:'public/img/titulos.png',tag:'RANKING AO VIVO',title:'Títulos e recordes em tempo real no site!',date:'04/08/2026',short:'Maior Abatedor, Caçador de Dirigíveis, Mais Horas Voadas e novos títulos.',full:'A aba RANKING & PATENTES do site agora consulta o servidor ao vivo e exibe: o pódio dos melhores pilotos com suas patentes, os detentores dos títulos (Maior Abatedor, Caçador de Dirigíveis, Mais Horas Voadas, Mais Vitórias e mais MVPs) e a galeria completa de condecorações com os requisitos de cada nível.\n\nDentro do jogo, a nova CENTRAL DO PILOTO (botão 🏆 Ranking) mostra em tela cheia sua patente atual, o progresso pra próxima, e toda a sua coleção de medalhas. Só entra no ranking quem joga logado — crie sua conta e garanta seu lugar na história!'},
-{img:'public/img/noticia1.png',tag:'ATUALIZAÇÃO 2.5',title:'Agora com 15 aviões e 15 pilotos pra escolher!',date:'20/07/2026',short:'Novos aviões equilibrados e avatares de piloto.',full:'Foram adicionados novos aviões: o jogo agora conta com 15 aeronaves diferentes, entre aviões de hélice, turboélice, jatos e naves espaciais. Todos pensados para ficar equilibrados — um avião forte sempre tem outro capaz de enfrentá-lo diretamente.\n\nAlém disso, com o chat de voz e sem login obrigatório, agora dá pra escolher entre 15 avatares de piloto (ou sua própria foto, com conta) pra te representar em combate.'},
+{img:'public/img/niveis.png',tag:'ATUALIZAÇÃO 3.0',title:'Sistema de Patentes e Condecorações chegou!',date:'04/08/2026',short:'Suba de Soldado a Tenente-Brigadeiro e colecione 22 medalhas.',full:'Agora o Batalha Aérea tem CARREIRA MILITAR completa! São 17 patentes — de Soldado de Segunda Classe até Tenente-Brigadeiro — cada uma com sua insígnia exibida ao lado do seu avatar.\n\nJunto chegam 22 condecorações com níveis Bronze, Prata e Ouro: Veterano dos Céus, Ás dos Céus, Mestre da Sobrevivência, Abatedor de Dirigíveis e muito mais — incluindo 6 medalhas SECRETAS (Fênix, Kamikaze, Tiro Perfeito, Caçador Relâmpago, Domínio Aéreo e Lenda da Batalha Aérea).\n\nCrie sua conta no jogo, jogue logado e apareça no ranking ao vivo do site com sua foto, patente e até 3 títulos escolhidos por você!'},
+{img:'public/img/titulos.png',tag:'RANKING AO VIVO',title:'Ranking com foto, patente e títulos dos pilotos!',date:'04/08/2026',short:'O ranking do site agora mostra a foto real de cada piloto e os títulos que ele escolheu exibir.',full:'A aba RANKING & PATENTES do site consulta o servidor ao vivo e exibe o pódio dos melhores pilotos com: foto de perfil atual (avatar de piloto ou foto personalizada), insígnia da patente atual, até 3 condecorações escolhidas pelo jogador e estatísticas completas — clique em qualquer linha pra expandir todos os números da carreira.\n\nDentro do jogo, a CENTRAL DO PILOTO (botão 🏆 Ranking) mostra sua patente, progresso pra próxima, toda a coleção de medalhas e deixa você escolher quais títulos exibir publicamente.'},
+{img:'public/img/noticia1.png',tag:'ATUALIZAÇÃO 2.5',title:'Agora com 15 aviões e 15 pilotos pra escolher!',date:'20/07/2026',short:'Novos aviões equilibrados e avatares de piloto.',full:'Foram adicionados novos aviões: o jogo agora conta com 15 aeronaves diferentes, entre aviões de hélice, turboélice, jatos e naves espaciais — todas equilibradas, um avião forte sempre tem outro capaz de enfrentá-lo diretamente.\n\nCom o chat de voz e sem login obrigatório, dá pra escolher entre 15 avatares de piloto (ou sua própria foto, com conta) pra te representar em combate.'},
 {img:'public/img/noticia2.png',tag:'NOVOS MAPAS',title:'Deserto, Floresta e Laboratório chegaram!',date:'12/07/2026',short:'Três mapas novos, clima inteligente e um dirigível perigoso.',full:'Chegaram três novos mapas: Deserto (com as três pirâmides de Gizé em formação triangular à frente da pista), Floresta (densa, sem espaço livre pra pouso) e Laboratório (ambiente Matrix que facilita ver projéteis).\n\nJunto veio o clima inteligente e aleatório (chuva, neblina, tempestade) e o dirigível: atire nele pra causar uma explosão enorme — mas cuidado, o dano atinge todo mundo por perto, inclusive você. Abater dirigíveis conta pra condecoração Abatedor de Dirigíveis!'}];
-/* ============ RENDER ============ */
 function el(h){const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstChild;}
-function renderNews(){
- const home=document.getElementById('news-home'),full=document.getElementById('news-full');
- NEWS.forEach((n,i)=>{
-  const c=el(`<div class="card news-card"><img class="thumb" src="${n.img}" alt=""><div class="body"><span class="tag">${n.tag}</span><h3>${n.title}</h3><p>${n.short}</p><div class="news-foot"><span class="date">${n.date}</span><button class="btn-ghost">SAIBA MAIS</button></div></div></div>`);
-  c.onclick=()=>openNews(i);home.appendChild(c);
-  const f=c.cloneNode(true);f.onclick=()=>openNews(i);full.appendChild(f);
- });
-}
-function openNews(i){const n=NEWS[i];document.getElementById('m-img').src=n.img;document.getElementById('m-tag').textContent=n.tag;document.getElementById('m-title').textContent=n.title;document.getElementById('m-date').textContent=n.date;document.getElementById('m-full').textContent=n.full;document.getElementById('modal').classList.add('open');document.body.style.overflow='hidden';}
-function renderRanks(){
- const groups=['Soldados','Graduados','Oficiais Subalternos','Oficiais Intermediários','Oficiais Superiores','Oficiais-Generais'];
- const wrap=document.getElementById('ranks-sections');
- groups.forEach(g=>{
-  const sec=el(`<div class="rank-group"><h3>${g}</h3><div class="ranks-grid"></div></div>`);
-  RANKS.filter(r=>r.g===g).forEach(r=>{
-   sec.querySelector('.ranks-grid').appendChild(el(`<div class="card rank-card"><img src="public/img/${r.img}" alt="${r.n}" onerror="this.style.opacity=.25"><div class="rn">${r.n}</div><div class="rq">${r.q} abates</div><div class="rd">${r.d}</div></div>`));
-  });
-  wrap.appendChild(sec);
- });
-}
-function renderMedals(){
- const g=document.getElementById('medals-grid');
- MEDALS.forEach(m=>{
-  g.appendChild(el(`<div class="card medal-card"><h4>${m.n}</h4><div class="q">“${m.q}”</div><div class="medal-lvls"><img src="public/img/${m.k}-bronze.png" title="Bronze" onerror="this.style.opacity=.25"><img src="public/img/${m.k}-prata.png" title="Prata" onerror="this.style.opacity=.25"><img src="public/img/${m.k}-ouro.png" title="Ouro" onerror="this.style.opacity=.25"></div><div class="medal-req"><div class="b"> ${m.r[0]}</div><div class="p">🥈 ${m.r[1]}</div><div class="o">🥇 ${m.r[2]}</div></div></div>`));
- });
- SECRETS.forEach(s=>{
-  g.appendChild(el(`<div class="card medal-card secret-card"><h4>🔒 ${s.n}</h4><div class="q">“${s.q}”</div><div class="medal-lvls"><img src="public/img/${s.k}.png" alt="" onerror="this.style.opacity=.25"></div><div class="medal-req"><div class="o" style="grid-column:1/-1">CONDECORAÇÃO SECRETA — só aparece ao conquistar</div></div></div>`));
- });
-}
-function renderHangar(){
- const g=document.getElementById('hangar-grid');
- PLANES.forEach((p,i)=>{
-  const c=el(`<div class="card plane-card"><img src="${p.img}" alt="${p.n}" onerror="this.style.minHeight='140px'"><div class="pi"><span class="ct">${p.c.toUpperCase()}</span><h4>${p.n}</h4><p>📅 ${p.ano} · 🌍 ${p.pais}</p></div></div>`);
-  c.onclick=()=>{document.getElementById('pm-cat').textContent=p.c.toUpperCase();document.getElementById('pm-name').textContent=p.n;document.getElementById('pm-body').innerHTML=`<table class="spec-table"><tr><td>📅 Ano de fabricação</td><td>${p.ano}</td></tr><tr><td>🌍 País / Origem</td><td>${p.pais}</td></tr><tr><td>🚀 Velocidade máxima</td><td>${p.vel}</td></tr><tr><td>☁️ Teto de serviço</td><td>${p.teto}</td></tr><tr><td>⭐ Curiosidade</td><td>${p.cur}</td></tr></table><p style="font-size:13px;color:var(--dim)">No jogo: habilidade especial única — veja a descrição completa no hangar do menu principal.</p>`;document.getElementById('plane-modal').classList.add('open');document.body.style.overflow='hidden';};
-  g.appendChild(c);
- });
-}
-/* ============ RANKING AO VIVO ============ */
-async function loadRanking(){
- const dot=document.getElementById('rank-dot'),st=document.getElementById('rank-status'),board=document.getElementById('board'),tg=document.getElementById('titles-grid');
- try{
-  const r=await fetch(GAME_LINK.replace(/\/$/,'')+'/api/ranking',{cache:'no-store'});if(!r.ok)throw 0;
-  const data=await r.json();
-  dot.className='dot online';st.innerHTML='<b style="color:var(--green)">● AO VIVO</b> · atualizado às '+new Date().toLocaleTimeString('pt-BR');
-  setOnline(true,data.leaderboard.length);
-  const T=[['topKills','🎯','Maior Abatedor'],['topBlimps','🎈','Caçador de Dirigíveis'],['topPlaytime','⏱️','Mais Horas Voadas'],['topWins','👑','Mais Vitórias'],['topMvps','🏆','Mais MVPs']];
-  tg.innerHTML=T.map(([k,ic,lb])=>{const row=data.titles&&data.titles[k];return `<div class="card title-card"><div class="ic">${ic}</div><div class="lb">${lb}</div>${row?`<div class="nm">👑 ${esc(row.nickname)}</div><div class="vl">${k==='topPlaytime'?Math.round(row.value/60)+' min':row.value}</div>`:'<div class="nm" style="color:var(--dim)">— ninguém ainda —</div>'}</div>`;}).join('');
-  const L=(data.leaderboard||[]).slice(0,20);
-  board.innerHTML=L.length?L.map((p,i)=>{const rk=RANKS.find(x=>x.k===p.rankKey)||RANKS[0];return `<div class="board-row ${i<3?'top'+(i+1):''}"><span class="pos">${i<3?['🥇','','🥉'][i]:(i+1)+'º'}</span><img src="public/img/${rk.img}" title="${rk.n}" onerror="this.style.visibility='hidden'"><span class="nk" style="color:${i===0?'var(--gold)':'#fff'}">${esc(p.nickname)}<div style="font-size:10.5px;color:var(--dim);font-weight:500">${rk.n}</div></span><span class="st">⚔ ${p.kills} · 💀 ${p.deaths} · 🎈 ${p.blimp_kills}<br>${fmtT(p.playtime_seconds)} de voo</span></div>`;}).join(''):'<div class="offline-box"><div class="ic">🛩️</div>Ainda ninguém jogou logado — seja o primeiro!</div>';
- }catch(e){
-  dot.className='dot offline';st.textContent='Servidor offline — o ranking volta quando o jogo subir.';setOnline(false,0);
-  board.innerHTML='<div class="offline-box"><div class="ic">🛰️</div>Servidor do jogo offline agora.<br>O ranking volta assim que o jogo subir.</div>';tg.innerHTML='';
- }
-}
 function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
 function fmtT(s){const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h>0?h+'h '+m+'min':m+' min';}
-function setOnline(on,n){
- ['hero-dot','status-dot'].forEach(id=>{document.getElementById(id).className='dot '+(on?'online':'offline');});
- document.getElementById('hero-text').textContent=on?'Servidor Online':'Servidor Offline';
- document.getElementById('status-text').textContent=on?'Servidor Online':'Servidor Offline';
- document.getElementById('status-pill').className='pill '+(on?'online':'offline');
- document.getElementById('players-count').textContent=n||'—';
-}
-/* ============ NAV / MODAIS ============ */
+(function(){const home=document.getElementById('news-home'),full=document.getElementById('news-full');
+NEWS.forEach((n,i)=>{const mk=()=>{const c=el(`<div class="card news-card"><img class="thumb" src="${n.img}" alt=""><div class="body"><span class="tag">${n.tag}</span><h3>${n.title}</h3><p>${n.short}</p><div class="news-foot"><span class="date">${n.date}</span><button class="btn-ghost">SAIBA MAIS</button></div></div></div>`);c.onclick=()=>openNews(i);return c;};home.appendChild(mk());full.appendChild(mk());});})();
+function openNews(i){const n=NEWS[i];document.getElementById('m-img').src=n.img;document.getElementById('m-tag').textContent=n.tag;document.getElementById('m-title').textContent=n.title;document.getElementById('m-date').textContent=n.date;document.getElementById('m-full').textContent=n.full;document.getElementById('modal').classList.add('open');document.body.style.overflow='hidden';}
+(function(){const groups=['Soldados','Graduados','Oficiais Subalternos','Oficiais Intermediários','Oficiais Superiores','Oficiais-Generais'];const wrap=document.getElementById('ranks-sections');
+groups.forEach(g=>{const sec=el(`<div class="rank-group"><h3>${g}</h3><div class="ranks-grid"></div></div>`);
+RANKS.filter(r=>r.g===g).forEach(r=>sec.querySelector('.ranks-grid').appendChild(el(`<div class="card rank-card"><img src="public/img/${r.img}" alt="${r.n}" onerror="this.style.opacity=.25"><div class="rn">${r.n}</div><div class="rq">${r.q} abates</div><div class="rd">${r.d}</div></div>`)));
+wrap.appendChild(sec);});
+const mg=document.getElementById('medals-grid');
+MEDALS.forEach(m=>mg.appendChild(el(`<div class="card medal-card"><h4>${m.n}</h4><div class="q">"${m.q}"</div><div class="medal-lvls"><img src="public/img/${m.k}-bronze.png" title="Bronze" onerror="this.style.opacity=.25"><img src="public/img/${m.k}-prata.png" title="Prata" onerror="this.style.opacity=.25"><img src="public/img/${m.k}-ouro.png" title="Ouro" onerror="this.style.opacity=.25"></div><div class="medal-req"><div class="b">🥉 ${m.r[0]}</div><div class="p">🥈 ${m.r[1]}</div><div class="o">🥇 ${m.r[2]}</div></div></div>`)));
+SECRETS.forEach(s=>mg.appendChild(el(`<div class="card medal-card secret-card"><h4>🔒 ${s.n}</h4><div class="q">"${s.q}"</div><div class="medal-lvls"><img src="public/img/${s.k}.png" alt="" onerror="this.style.opacity=.25"></div><div class="medal-req"><div class="o" style="grid-column:1/-1">CONDECORAÇÃO SECRETA — só aparece ao conquistar</div></div></div>`)));
+const pg=document.getElementById('pilots-grid');
+for(let i=1;i<=15;i++)pg.appendChild(el(`<div class="pilot-card"><img src="public/img/piloto${i}.png" alt="Piloto ${i}" onerror="this.parentElement.style.display='none'"></div>`));})();
+(function(){const g=document.getElementById('hangar-grid');
+PLANES.forEach(p=>{const c=el(`<div class="card plane-card"><img src="${p.img}" alt="${p.n}" onerror="this.style.minHeight='140px'"><div class="pi"><span class="ct">${p.c.toUpperCase()}</span><h4>${p.n}</h4><p>📅 ${p.ano} · 🌍 ${p.pais}</p></div></div>`);
+c.onclick=()=>{document.getElementById('pm-cat').textContent=p.c.toUpperCase();document.getElementById('pm-name').textContent=p.n;
+document.getElementById('pm-body').innerHTML=`<img class="power-img" src="public/img/poder${p.poder}.png" alt="⚡ Habilidade especial" onerror="this.style.display='none'"><div class="pm-bars"><div class="pm-bar"><span>🚀 Velocidade</span><div class="tr"><div data-w="${p.s[0]}"></div></div><b>${p.s[0]}%</b></div><div class="pm-bar"><span>🌀 Manobrabilidade</span><div class="tr"><div data-w="${p.s[1]}"></div></div><b>${p.s[1]}%</b></div><div class="pm-bar"><span>🛡️ Estabilidade</span><div class="tr"><div data-w="${p.s[2]}"></div></div><b>${p.s[2]}%</b></div></div><table class="spec-table"><tr><td>📅 Ano de fabricação</td><td>${p.ano}</td></tr><tr><td>🌍 País / Origem</td><td>${p.pais}</td></tr><tr><td>🚀 Velocidade máxima</td><td>${p.vel}</td></tr><tr><td>☁️ Teto de serviço</td><td>${p.teto}</td></tr><tr><td>⭐ Curiosidade</td><td>${p.cur}</td></tr></table>`;
+document.getElementById('plane-modal').classList.add('open');document.body.style.overflow='hidden';
+setTimeout(()=>document.querySelectorAll('#pm-body .tr div').forEach(b=>b.style.width=b.dataset.w+'%'),60);};
+g.appendChild(c);});})();
+
+/* ===== RANKING AO VIVO (HTML reorganizado pra não encavalar) ===== */
+async function loadRanking(){
+const dot=document.getElementById('rank-dot'),st=document.getElementById('rank-status'),board=document.getElementById('board'),tg=document.getElementById('titles-grid');
+try{
+ const r=await fetch(GAME_LINK.replace(/\/$/,'')+'/api/ranking',{cache:'no-store'});if(!r.ok)throw 0;
+ const data=await r.json();
+ dot.className='dot online';st.innerHTML='<b style="color:var(--green)">● AO VIVO</b> · atualizado às '+new Date().toLocaleTimeString('pt-BR');
+ setOnline(true,data.leaderboard.length);
+ const T=[['topKills','🎯','Maior Abatedor'],['topBlimps','🎈','Caçador de Dirigíveis'],['topPlaytime','⏱️','Mais Horas Voadas'],['topWins','👑','Mais Vitórias'],['topMvps','🏆','Mais MVPs']];
+ tg.innerHTML=T.map(([k,ic,lb])=>{const row=data.titles&&data.titles[k];return `<div class="card title-card"><div class="ic">${ic}</div><div class="lb">${lb}</div>${row?`<div class="nm">👑 ${esc(row.nickname)}</div><div class="vl">${k==='topPlaytime'?fmtT(row.value):row.value}</div>`:'<div class="nm" style="color:var(--dim)">— ninguém ainda —</div>'}</div>`;}).join('');
+ const L=(data.leaderboard||[]).slice(0,20);
+ board.innerHTML=L.length?L.map((p,i)=>{
+  const rk=RANKS.find(x=>x.k===p.rankKey)||RANKS[0];
+  // Títulos em uma linha separada com flex-wrap
+  const titles=(p.titles||[]).map(t=>`<img class="timg" src="public/img/${t.key.replace(/_/g,'-')}-${LVLN[t.level]||'bronze'}.png" title="${esc(t.key)} (${LVLN[t.level]})" onerror="this.style.display='none'">`).join('');
+  // Foto com fallback para iniciais
+  const photoBg=['#F2B705','#0583F2','#63BD01','#50029A'][i%4];
+  const photo=p.photoUrl?`<img class="pphoto" src="${GAME_LINK.replace(/\/$/,'')}${p.photoUrl}" alt="" onerror="this.outerHTML='<span class=&quot;pini&quot; style=&quot;background:${photoBg}&quot;>${esc((p.nickname||'?')[0].toUpperCase())}</span>'">`:`<span class="pini" style="background:${photoBg}">${esc((p.nickname||'?')[0].toUpperCase())}</span>`;
+  const kd=p.deaths>0?(p.kills/p.deaths).toFixed(2):p.kills>0?'∞':'0.00';
+  const wr=p.matches_played>0?Math.round((p.wins||0)/p.matches_played*100):0;
+  const next=RANKS[RANKS.indexOf(rk)+1];
+  
+  return `
+    <div class="board-row ${i<3?'top'+(i+1):''}" data-i="${i}">
+      <span class="pos">${i<3?['🥇','🥈','🥉'][i]:(i+1)+'º'}</span>
+      <img class="rimg" src="public/img/${rk.img}" title="${rk.n}" onerror="this.style.visibility='hidden'">
+      ${photo}
+      <div class="who">
+        <div class="titles-row">${titles}</div>
+        <div class="nk">
+          <span class="nickname">${esc(p.nickname)}</span>
+          <small>${rk.n}</small>
+        </div>
+      </div>
+      <div class="st">
+        <span class="stat">⚔ <b>${p.kills}</b></span>
+        <span class="stat">💀 <b>${p.deaths}</b></span>
+        <span class="stat">🎈 <b>${p.blimp_kills}</b></span>
+        <span class="stat">👑 <b>${p.wins||0}</b></span>
+        <span class="stat-time">⏱ ${fmtT(p.playtime_seconds)} de voo</span>
+      </div>
+    </div>
+    <div class="board-detail" id="bd-${i}">
+      <div class="bd-grid">
+        <div>⚔ Abates<b>${p.kills}</b></div>
+        <div>💀 Mortes<b>${p.deaths}</b></div>
+        <div>🎯 K/D<b>${kd}</b></div>
+        <div>🎈 Dirigíveis<b>${p.blimp_kills}</b></div>
+        <div>👑 Vitórias<b>${p.wins||0}</b></div>
+        <div>🏆 MVPs<b>${p.mvps||0}</b></div>
+        <div>🛫 Partidas<b>${p.matches_played}</b></div>
+        <div>📈 Win rate<b>${wr}%</b></div>
+        <div>💣 Bombas<b>${p.bomb_kills||0}</b></div>
+        <div>🚀 Mísseis<b>${p.missile_kills||0}</b></div>
+        <div>⏱ Tempo de voo<b>${fmtT(p.playtime_seconds)}</b></div>
+        <div>🏅 Medalhas<b>🥉${p.medalSummary?p.medalSummary.b:0} 🥈${p.medalSummary?p.medalSummary.p:0} 🥇${p.medalSummary?p.medalSummary.o:0}</b></div>
+      </div>
+      <div style="margin-top:12px;font-size:12.5px;padding:8px;background:rgba(1,31,68,.4);border-radius:8px;border-left:3px solid var(--gold)">
+        Progresso da patente: <b style="color:var(--gold)">${rk.n}</b>${next?` → ${next.n} (${p.kills}/${next.q} abates)`:' · patente máxima!'}
+        <div class="bd-bar"><div style="width:${next?Math.min(100,Math.round(p.kills/next.q*100)):100}%"></div></div>
+      </div>
+    </div>`;
+ }).join(''):'<div class="offline-box"><div class="ic">🛩️</div>Ainda ninguém jogou logado — seja o primeiro!</div>';
+ board.querySelectorAll('.board-row').forEach(row=>row.onclick=()=>document.getElementById('bd-'+row.dataset.i).classList.toggle('open'));
+}catch(e){
+ dot.className='dot offline';st.textContent='Servidor offline — o ranking volta quando o jogo subir.';setOnline(false,0);
+ board.innerHTML='<div class="offline-box"><div class="ic">🛰️</div>Servidor do jogo offline agora.<br>O ranking volta assim que o jogo subir.</div>';tg.innerHTML='';
+}}
+function setOnline(on,n){['hero-dot','status-dot'].forEach(id=>{document.getElementById(id).className='dot '+(on?'online':'offline');});document.getElementById('hero-text').textContent=on?'Servidor Online':'Servidor Offline';document.getElementById('status-text').textContent=on?'Servidor Online':'Servidor Offline';document.getElementById('status-pill').className='pill '+(on?'online':'offline');document.getElementById('players-count').textContent=n||'—';}
 const VIEWS=['inicio','noticias','ranking','sobre','contato'];
 function go(v){if(!VIEWS.includes(v))v='inicio';document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById('view-'+v).classList.add('active');document.querySelectorAll('#main-nav a').forEach(a=>a.classList.toggle('active',a.dataset.view===v));history.pushState(null,'','#'+v);window.scrollTo(0,0);if(v==='ranking')loadRanking();}
 document.querySelectorAll('#main-nav a').forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.view);});
@@ -354,7 +604,6 @@ document.getElementById('modal-close').onclick=()=>{document.getElementById('mod
 document.getElementById('plane-close').onclick=()=>{document.getElementById('plane-modal').classList.remove('open');document.body.style.overflow='';};
 ['modal','plane-modal'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{if(e.target.id===id){e.target.classList.remove('open');document.body.style.overflow='';}}));
 document.getElementById('play-btn-link').href=GAME_LINK;
-renderNews();renderRanks();renderMedals();renderHangar();
 go(location.hash.replace('#','')||'inicio');
 loadRanking();setInterval(loadRanking,60000);
 </script>
