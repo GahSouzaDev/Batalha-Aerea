@@ -3,8 +3,29 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
+const cors = require("cors"); // ✅ CORS adicionado
+
+// CORREÇÃO/REDE DE SEGURANÇA: por padrão, um erro não tratado dentro de
+// QUALQUER handler de socket.io (ex: 'create-room', 'auth-identify')
+// derruba o processo Node INTEIRO — todo mundo conectado cai junto, a
+// sala some, tudo. Foi exatamente isso que aconteceu (um bug pontual
+// num evento novo derrubou o servidor todo). Agora, um erro assim só é
+// registrado no console (pra você ver e eu poder corrigir), sem matar o
+// servidor pra todo mundo que está jogando. Isso não é desculpa pra
+// deixar bugs soltos por aí — é só pra um bug não vazado não virar uma
+// queda total do jogo.
+process.on('uncaughtException', (err) => {
+  console.error('❌ [uncaughtException] Um erro não tratado aconteceu (o servidor NÃO caiu, mas isso precisa ser corrigido):', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('❌ [unhandledRejection] Uma Promise rejeitada não foi tratada:', err);
+});
 
 const app = express();
+
+// ✅ CORS LIBERADO GLOBALMENTE (qualquer origem pode acessar as rotas REST)
+app.use(cors());
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" },
@@ -20,7 +41,14 @@ const io = new Server(server, {
 // GET /api/auth/me).
 app.use(express.json());
 require("./auth").mount(app);
+const profileModule = require("./profile");
+const friendsModule = require("./friends");
+profileModule.mount(app);
+friendsModule.mount(app);
 app.use(express.static(path.join(__dirname, "public")));
+// Fotos de perfil (ver profile.js) ficam em public/uploads/avatars —
+// essa linha é quem deixa elas acessíveis via /uploads/avatars/arquivo.jpg
+app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 
 // ===== DADOS =====
 const rooms = new Map();
@@ -268,13 +296,36 @@ function updateRoomWeather(room, dt) {
 
 function genRoomId() { return (++roomCounter).toString(36).toUpperCase(); }
 
+// PEDIDO: foto de perfil como "piloto 16" — validação de segurança
+// (não confiamos cegamente numa URL vinda do cliente): só aceita se
+// apontar pra dentro de /uploads/avatars/, que é exatamente onde
+// profile.js salva as fotos enviadas de verdade. Qualquer outra coisa
+// (URL externa, string gigante etc.) é ignorada — cai de volta pro
+// piloto 1 padrão pra quem tentar forçar algo diferente.
+function safeAvatarPhotoUrl(url) {
+  if (typeof url !== "string") return null;
+  if (!url.startsWith("/uploads/avatars/")) return null;
+  return url.slice(0, 300);
+}
+
 function makePlayer(socket, data) {
   const pilotNum = parseInt(data.pilot, 10);
   return {
     id: socket.id,
     name: (data.name || "Piloto").slice(0, 18),
     color: data.color || "#00e5ff",
-    pilot: (pilotNum >= 1 && pilotNum <= 15) ? pilotNum : 1,
+    // PEDIDO: sistema de contas — se o socket já se identificou (ver
+    // friends.js/'auth-identify', emitido pelo cliente assim que
+    // conecta, ANTES de criar/entrar numa sala), guardamos qual conta é
+    // essa aqui. Usado só pra estatísticas persistentes (abates, mortes,
+    // dirigíveis, tempo jogado — ver profile.js); fica `null` pra quem
+    // está jogando sem login, sem quebrar nada pra esse caso.
+    accountId: socket.accountId || null,
+    pilot: (pilotNum >= 1 && pilotNum <= 16) ? pilotNum : 1,
+    // Só tem valor de verdade quando `pilot === 16` — é a URL da foto
+    // própria (ver ui-menu.js/setCustomPilotPhoto), repassada pros
+    // outros jogadores da sala poderem ver ela também (chat de voz).
+    customPhotoUrl: safeAvatarPhotoUrl(data.customPhotoUrl),
     planeType: VALID_PLANES.includes(data.planeType) ? data.planeType : "cessna",
     vote: null,
     team: null,
@@ -534,6 +585,7 @@ function beginPlaying(room) {
   room.state = "playing";
   room.prepTimer = TAKEOFF_GRACE;
   room.combatEnabled = false;
+  room.matchStartedAt = Date.now(); // PEDIDO: usado só pra calcular tempo jogado (ver endMatch)
   initRoomWeather(room); // PEDIDO: clima/dirigível recomeçam do zero a cada partida nova
   broadcastRoom(room.id);
   io.to(room.id).emit("match-begin", { prepTime: TAKEOFF_GRACE });
@@ -541,6 +593,11 @@ function beginPlaying(room) {
 
 function endMatch(room, resultMsg, winner) {
   room.state = "finished";
+  // PEDIDO: soma o tempo desta partida às estatísticas de CADA jogador
+  // logado presente na sala — jogador sem conta (accountId null) é
+  // ignorado silenciosamente dentro de recordMatchPlayed.
+  const playtimeSeconds = room.matchStartedAt ? (Date.now() - room.matchStartedAt) / 1000 : 0;
+  room.players.forEach(p => profileModule.recordMatchPlayed(p.accountId, playtimeSeconds));
   io.to(room.id).emit("match-end", {
     message: resultMsg, winner,
     standings: room.players.map(p => ({ name: p.name, kills: p.kills, deaths: p.deaths })),
@@ -625,9 +682,11 @@ function applyDamage(room, targetId, dmg, shooterId, weaponType) {
     target.state = "dead";
     target.health = 0;
     target.deaths++;
+    profileModule.recordDeath(target.accountId);
     const shooter = room.players.find(p => p.id === shooterId);
     if (shooter && shooter.id !== targetId) {
       shooter.kills++;
+      profileModule.recordKill(shooter.accountId);
       // PEDIDO: Sala Livre — abater alguém cura o atirador por completo.
       // Só nesse modo: nas salas criadas a vida fica como está até a
       // partida acabar (aviões de suporte que curam vêm depois).
@@ -655,6 +714,10 @@ function applyDamage(room, targetId, dmg, shooterId, weaponType) {
 
 // ===== SOCKET HANDLERS =====
 io.on("connection", (socket) => {
+  // PEDIDO: sistema de amigos/desafio (ver friends.js) — identifica a
+  // conta desse socket (se logado) e liga os eventos de convite.
+  friendsModule.registerSocketHandlers(io, socket);
+
   socket.on("list-rooms", (cb) => cb(roomList()));
 
   socket.on("create-room", (data, cb) => {
@@ -869,6 +932,10 @@ io.on("connection", (socket) => {
     if (b.phase !== "voando" || !b.alive) return;
     b.alive = false;
     b.phase = "idle";
+    // PEDIDO: estatística de "maior abatedor de balões" (título no
+    // ranking — ver profile.js/getTitles). Só conta pra quem está
+    // logado (socket.accountId vem de friends.js/'auth-identify').
+    profileModule.recordBlimpKill(socket.accountId);
     b.gap = room.isFreeRoom ? BLIMP_BASE_GAP : Math.max(BLIMP_MIN_GAP_FLOOR, b.gap / 2);
     b.timer = b.gap; b.duration = b.gap;
     const pos = (d && d.position) || (b.spawn ? b.spawn.start : { x: 0, y: 80, z: 0 });
@@ -907,11 +974,12 @@ io.on("connection", (socket) => {
     const color = (data && data.color) || "#00e5ff";
     const muted = !!(data && data.muted);
     const pilotNum = parseInt(data && data.pilot, 10);
-    const pilot = (pilotNum >= 1 && pilotNum <= 15) ? pilotNum : 1;
-    vr.set(socket.id, { name, color, muted, pilot });
+    const pilot = (pilotNum >= 1 && pilotNum <= 16) ? pilotNum : 1;
+    const customPhotoUrl = safeAvatarPhotoUrl(data && data.customPhotoUrl);
+    vr.set(socket.id, { name, color, muted, pilot, customPhotoUrl });
     const participants = [...vr.entries()].filter(([id]) => id !== socket.id).map(([id, p]) => ({ id, ...p }));
     if (cb) cb({ success: true, roomId, participants });
-    socket.to(roomId).emit("voice-peer-joined", { id: socket.id, name, color, muted, pilot });
+    socket.to(roomId).emit("voice-peer-joined", { id: socket.id, name, color, muted, pilot, customPhotoUrl });
   });
 
   socket.on("voice-leave", () => {

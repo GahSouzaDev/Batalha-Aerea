@@ -144,17 +144,27 @@ function validateRegistration({ displayName, nickname, password, confirmPassword
 }
 
 // ==================== MIDDLEWARE (mesmo padrão do FluxPRO) ====================
+// Usado pelo middleware `authenticate` (rotas REST) e também
+// diretamente pelo socket.io em friends.js (evento 'auth-identify') —
+// por isso vive como função própria, exportada, em vez de só inline
+// dentro do middleware.
+function verifyToken(token) {
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
+}
+
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) return res.status(401).json({ error: "Token não fornecido" });
   const token = authHeader.split(" ")[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Token inválido ou expirado" });
-  }
+  const decoded = verifyToken(token);
+  if (!decoded) return res.status(401).json({ error: "Token inválido ou expirado" });
+  req.user = decoded;
+  next();
 };
 
 // ==================== ROTAS (registradas pelo server.js principal) ====================
@@ -216,6 +226,11 @@ function mount(app) {
 }
 
 module.exports = {
-  mount, authenticate,
+  mount, authenticate, verifyToken,
   validateRegistration, validateNickname, validateDisplayName, validatePassword,
+  // Exportado pra profile.js/friends.js reaproveitarem a MESMA conexão
+  // de banco (evita abrir duas conexões sqlite3 pro mesmo arquivo) e o
+  // mesmo segredo de token (pra o socket.io também poder validar quem
+  // é quem — ver friends.js).
+  db, JWT_SECRET,
 };
