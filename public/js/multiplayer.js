@@ -15,6 +15,22 @@ function silenceAllEngines() {
 }
 const PLANE_ICONS_MAP = PLANE_ICONS;
 
+// NOVO — desenha os títulos (até 3) que o jogador escolheu exibir, ao
+// lado do nome dele no lobby. `titles` vem do servidor (room-update /
+// match-loading / free-room-enter / player-joined — ver server.js),
+// cada item é {key, level}. Reaproveita LVLN e MEDAL_NAMES, que já são
+// globais definidos em social-client.js (carregado antes deste
+// arquivo no index.html).
+function lobbyTitleBadgesHtml(titles) {
+  if (!titles || !titles.length) return '';
+  return titles.map(t => {
+    const lvl = (typeof LVLN !== 'undefined' && LVLN[t.level]) || 'bronze';
+    const img = 'img/' + String(t.key).replace(/_/g, '-') + '-' + lvl + '.png';
+    const label = (typeof MEDAL_NAMES !== 'undefined' && MEDAL_NAMES[t.key]) || t.key;
+    return '<img src="' + img + '" title="' + label + '" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin:0 2px;filter:drop-shadow(0 0 3px rgba(254,186,2,.6));" onerror="this.style.display=\'none\'">';
+  }).join('');
+}
+
 function leaveOnlineIfNeeded() {
   if (typeof voiceChatDisconnect === 'function') voiceChatDisconnect();
   if (typeof textChatReset === 'function') textChatReset();
@@ -170,7 +186,7 @@ function addRemotePlayer(p) {
     targetPos: new THREE.Vector3(pos.x, pos.y, pos.z),
     targetYaw: p.yaw || 0, targetPitch: 0, targetRoll: 0,
     team: p.team, _lastHealth: p.health != null ? p.health : 100, kills: 0, deaths: 0, _abilityTimeout: null, _trailInterval: null,
-    planeType: p.planeType || 'cessna',
+    planeType: p.planeType || 'cessna', titles: p.titles || [],
   });
 }
 
@@ -702,7 +718,7 @@ function renderLobby(data) {
     }
     let crownBtn = '';
     if (amHost && p.id !== data.hostId) crownBtn = '<button class="crown-btn" data-pid="' + p.id + '" title="Tornar host" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;">👑</button>';
-    div.innerHTML = '<div class="dot" style="background:' + p.color + '"></div><span class="name">' + p.name + '</span>' + (p.id === data.hostId ? '<span class="host-badge">HOST</span>' : '') + vehicleBadge + teamBadge + '<span class="' + readyClass + '">' + readyText + '</span>' + crownBtn;
+    div.innerHTML = '<div class="dot" style="background:' + p.color + '"></div><span class="name">' + p.name + '</span>' + lobbyTitleBadgesHtml(p.titles) + (p.id === data.hostId ? '<span class="host-badge">HOST</span>' : '') + vehicleBadge + teamBadge + '<span class="' + readyClass + '">' + readyText + '</span>' + crownBtn;
     return div;
   }
 

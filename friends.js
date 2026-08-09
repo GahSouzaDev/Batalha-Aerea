@@ -5,9 +5,15 @@
 //  um amigo está online agora) + o convite de "desafiar" (cria uma sala
 //  do seu lado normalmente, como já existe, e só avisa o amigo em tempo
 //  real com um convite pra entrar nela).
+//
+//  ATUALIZAÇÃO: busca e lista de amigos agora também devolvem `titles`
+//  (os até-3 títulos que aquela pessoa escolheu exibir, com o nível de
+//  cada um) — usa profileModule.getPublicTitlesBulk pra buscar tudo de
+//  uma vez em vez de uma consulta por linha.
 // ================================================================
 
 const { db, authenticate, verifyToken } = require('./auth');
+const profileModule = require('./profile');
 
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS friend_requests (
@@ -58,7 +64,10 @@ function mount(app) {
               }
               return { id: u.id, nickname: u.nickname, displayName: u.display_name, status, online: accountSocketMap.has(u.id) };
             });
-            res.json({ results });
+            profileModule.getPublicTitlesBulk(results.map(r => r.id), (titlesMap) => {
+              results.forEach(r => { r.titles = titlesMap[r.id] || []; });
+              res.json({ results });
+            });
           }
         );
       }
@@ -87,7 +96,11 @@ function mount(app) {
           else if (r.status === 'pending' && r.to_user_id === req.user.id) incoming.push(entry);
           else if (r.status === 'pending' && r.from_user_id === req.user.id) outgoing.push(entry);
         });
-        res.json({ friends, incoming, outgoing });
+        const allIds = [...friends, ...incoming, ...outgoing].map(e => e.userId);
+        profileModule.getPublicTitlesBulk(allIds, (titlesMap) => {
+          [...friends, ...incoming, ...outgoing].forEach(e => { e.titles = titlesMap[e.userId] || []; });
+          res.json({ friends, incoming, outgoing });
+        });
       }
     );
   });

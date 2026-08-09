@@ -1,518 +1,403 @@
-// profile.js — perfil persistente, carreira militar (patentes/medalhas/títulos)
-// e ranking público. VERSÃO REFEITA DO ZERO — sem inconsistências:
-//  • Chaves de medalha SEMPRE com hífen (igual aos arquivos de imagem e ao site).
-//  • Exporta TODAS as funções que o server.js chama (recordMatchResults,
-//    recordFirstBlood, unlockSecret etc.) — nada de "function not found".
-//  • /api/profile/settings SEMPRE responde e salva selected_titles de verdade.
-//  • /api/ranking devolve photoUrl + rankKey + titles (com nível real da medalha).
-//
-// DEPENDÊNCIA (já instalada): npm install multer
+// profile.js — carreira militar completa + foto/piloto/títulos exibidos no ranking
+// ================================================================
+// CORREÇÃO DESTA VERSÃO (sistema de títulos/medalhas):
+//  - NADA relacionado a treino com bots ou Sala Livre entra aqui. Quem
+//    decide quando chamar recordKill/recordDeath/recordBlimpKill/
+//    recordMatchResults é o server.js, e ele só chama isso quando
+//    `!room.isFreeRoom` (ou seja, só em sala criada — Todos Contra
+//    Todos ou Esquadrões). Bots nem existem no servidor (são só
+//    visuais do lado do cliente no modo solo), então nunca poderiam
+//    entrar aqui de qualquer forma.
+//  - RECOMPUTE MANUAL: /api/profile/recompute-medals — recalcula suas
+//    medalhas AGORA, a partir dos números que já estão salvos em
+//    player_stats. Resolve o caso de "já tenho o número certo de
+//    abates/dirigíveis mas a medalha nunca foi gravada" (a gravação só
+//    acontece no INSTANTE em que a estatística sobe, não toda vez que
+//    alguém abre o perfil). Tem botão em "Meu Perfil" na Central do
+//    Piloto pra chamar essa rota.
+//  - getPublicTitles / getPublicTitlesBulk: os até-3 títulos que o
+//    jogador escolheu exibir, usados por server.js (lobby) e
+//    friends.js (busca/lista de amigos) pra mostrar ao lado do nome.
+// ================================================================
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { db, authenticate } = require('./auth');
-// PEDIDO: pra avisar o jogador NA HORA quando ele destrava um título (e pra
-// entregar a "carteirinha" — foto, patente e títulos — de cada jogador que
-// está numa sala, pros amigos/oponentes verem). accountSocketMap é o mesmo
-// mapa userId -> socket.id atual que o friends.js já mantém.
-const friendsModule = require('./friends');
 
-// ==================== TABELAS + MIGRAÇÃO ====================
+const RANKS = [
+  { k: 's2', n: 'Soldado de Segunda Classe (S2)', q: 0, img: 'soldado-de-segunda-classe(s2).png' },
+  { k: 's1', n: 'Soldado de Primeira Classe (S1)', q: 25, img: 'soldado-de-primeira-classe(s1).png' },
+  { k: 'cabo', n: 'Cabo', q: 75, img: 'cabo.png' },
+  { k: '3s', n: 'Terceiro-Sargento', q: 150, img: 'terceiro-sargento.png' },
+  { k: '2s', n: 'Segundo-Sargento', q: 300, img: 'segundo-sargento.png' },
+  { k: '1s', n: 'Primeiro-Sargento', q: 500, img: 'primeiro-sargento.png' },
+  { k: 'sub', n: 'Suboficial', q: 750, img: 'suboficial.png' },
+  { k: 'asp', n: 'Aspirante a Oficial', q: 1000, img: 'aspirante-a-oficial.png' },
+  { k: '2t', n: 'Segundo-Tenente', q: 1400, img: 'segundo-tenente.png' },
+  { k: '1t', n: 'Primeiro-Tenente', q: 1900, img: 'primeiro-tenente.png' },
+  { k: 'cap', n: 'Capitão', q: 2500, img: 'capitao.png' },
+  { k: 'maj', n: 'Major', q: 3200, img: 'major.png' },
+  { k: 'tc', n: 'Tenente-Coronel', q: 4000, img: 'tenente-coronel.png' },
+  { k: 'cel', n: 'Coronel', q: 5000, img: 'coronel.png' },
+  { k: 'brig', n: 'Brigadeiro', q: 6500, img: 'brigadeiro.png' },
+  { k: 'mbrig', n: 'Major-Brigadeiro', q: 8000, img: 'major-brigadeiro.png' },
+  { k: 'tbrig', n: 'Tenente-Brigadeiro', q: 10000, img: 'tenente-brigadeiro.png' },
+];
+function rankFor(kills) { let r = RANKS[0]; for (const x of RANKS) if (kills >= x.q) r = x; return r; }
+
+const H = 3600;
+const MEDAL_DEFS = [
+  { k: 'veterano_dos_ceus', th: [5 * H, 20 * H, 75 * H], m: s => s.playtime_seconds },
+  { k: 'as_dos_ceus', th: [50, 250, 1000], m: s => s.kills },
+  { k: 'mestre_da_sobrevivencia', th: [5, 15, 50], m: s => s.best_survival_streak },
+  { k: 'fantasma_dos_ceus', th: [1.5, 2.5, 4.0], m: s => s.kills / Math.max(1, s.deaths) },
+  { k: 'abatedor_de_dirigiveis', th: [10, 50, 250], m: s => s.blimp_kills },
+  { k: 'bombardeiro_de_elite', th: [25, 100, 400], m: s => s.bomb_kills },
+  { k: 'mestre_dos_misseis', th: [25, 100, 400], m: s => s.missile_kills },
+  { k: 'heroi_da_esquadrilha', th: [10, 50, 200], m: s => s.mvps },
+  { k: 'conquistador_dos_ceus', th: [25, 100, 500], m: s => s.wins },
+  { k: 'piloto_veterano', th: [50, 250, 1000], m: s => s.matches_played },
+  { k: 'implacavel', th: [300, 600, 1200], m: s => s.best_alive_seconds },
+  { k: 'blindagem_viva', th: [500, 2000, 10000], m: s => s.best_damage_taken },
+  { k: 'ultimo_no_ceu', th: [10, 50, 250], m: s => s.last_survivor },
+  { k: 'primeiro_ataque', th: [10, 50, 250], m: s => s.first_bloods },
+  { k: 'piloto_dedicado', th: [7, 30, 180], m: s => s.login_days },
+  { k: 'orgulho_da_esquadrilha', th: [3, 10, 16], m: (s, ri) => ri + 1 },
+];
+const SECRET_KEYS = ['fenix', 'kamikaze', 'tiro_perfeito', 'cacador_relampago', 'dominio_aereo', 'lenda_da_batalha_aerea'];
+const ALL_MEDAL_KEYS = MEDAL_DEFS.map(d => d.k).concat(SECRET_KEYS);
+
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS player_profile (
-    user_id INTEGER PRIMARY KEY,
-    preferred_plane TEXT DEFAULT 'cessna',
-    sound_enabled INTEGER DEFAULT 1,
-    music_enabled INTEGER DEFAULT 1,
-    preferred_pilot INTEGER DEFAULT NULL,
-    selected_titles TEXT DEFAULT NULL,
-    photo_path TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )`);
+    user_id INTEGER PRIMARY KEY, preferred_plane TEXT DEFAULT 'cessna',
+    sound_enabled INTEGER DEFAULT 1, music_enabled INTEGER DEFAULT 1,
+    photo_path TEXT, preferred_pilot INTEGER DEFAULT NULL, selected_titles TEXT DEFAULT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
   db.run(`CREATE TABLE IF NOT EXISTS player_stats (
-    user_id INTEGER PRIMARY KEY,
-    matches_played INTEGER DEFAULT 0,
-    kills INTEGER DEFAULT 0,
-    deaths INTEGER DEFAULT 0,
-    blimp_kills INTEGER DEFAULT 0,
-    wins INTEGER DEFAULT 0,
-    mvps INTEGER DEFAULT 0,
-    bomb_kills INTEGER DEFAULT 0,
-    missile_kills INTEGER DEFAULT 0,
-    login_days INTEGER DEFAULT 0,
-    first_bloods INTEGER DEFAULT 0,
-    last_survivals INTEGER DEFAULT 0,
-    damage_taken INTEGER DEFAULT 0,
-    best_alive_seconds INTEGER DEFAULT 0,
-    playtime_seconds INTEGER DEFAULT 0,
-    last_login_date TEXT DEFAULT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )`);
+    user_id INTEGER PRIMARY KEY, matches_played INTEGER DEFAULT 0, kills INTEGER DEFAULT 0,
+    deaths INTEGER DEFAULT 0, blimp_kills INTEGER DEFAULT 0, playtime_seconds INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
   db.run(`CREATE TABLE IF NOT EXISTS player_medals (
-    user_id INTEGER NOT NULL,
-    medal_key TEXT NOT NULL,
-    level INTEGER DEFAULT 0,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, medal_key),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )`);
-  // Migração tolerante pra bancos criados por versões antigas
-  [
-    'ALTER TABLE player_profile ADD COLUMN preferred_pilot INTEGER',
-    'ALTER TABLE player_profile ADD COLUMN selected_titles TEXT',
-    'ALTER TABLE player_stats ADD COLUMN wins INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN mvps INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN bomb_kills INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN missile_kills INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN login_days INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN first_bloods INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN last_survivals INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN damage_taken INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN best_alive_seconds INTEGER DEFAULT 0',
-    'ALTER TABLE player_stats ADD COLUMN last_login_date TEXT',
-  ].forEach(sql => db.run(sql, () => {})); // erro "coluna já existe" é ignorado
+    user_id INTEGER, medal_key TEXT, level INTEGER DEFAULT 0, unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, medal_key))`);
+  const NEW_STATS = [
+    ['wins', 'INTEGER DEFAULT 0'], ['mvps', 'INTEGER DEFAULT 0'], ['bomb_kills', 'INTEGER DEFAULT 0'],
+    ['missile_kills', 'INTEGER DEFAULT 0'], ['first_bloods', 'INTEGER DEFAULT 0'], ['last_survivor', 'INTEGER DEFAULT 0'],
+    ['best_survival_streak', 'INTEGER DEFAULT 0'], ['current_survival_streak', 'INTEGER DEFAULT 0'],
+    ['best_alive_seconds', 'INTEGER DEFAULT 0'], ['best_damage_taken', 'INTEGER DEFAULT 0'],
+    ['login_days', 'INTEGER DEFAULT 0'], ['last_login_date', 'TEXT'], ['deaths_today', 'INTEGER DEFAULT 0'], ['deaths_today_date', 'TEXT'],
+  ];
+  db.all('PRAGMA table_info(player_stats)', [], (err, rows) => {
+    if (err || !rows) return;
+    const have = rows.map(r => r.name);
+    NEW_STATS.forEach(([c, d]) => { if (!have.includes(c)) db.run(`ALTER TABLE player_stats ADD COLUMN ${c} ${d}`); });
+  });
+  const NEW_PROF = [['preferred_pilot', 'INTEGER DEFAULT NULL'], ['selected_titles', 'TEXT DEFAULT NULL']];
+  db.all('PRAGMA table_info(player_profile)', [], (err, rows) => {
+    if (err || !rows) return;
+    const have = rows.map(r => r.name);
+    NEW_PROF.forEach(([c, d]) => { if (!have.includes(c)) db.run(`ALTER TABLE player_profile ADD COLUMN ${c} ${d}`); });
+  });
 });
+function ensureStatsRow(userId, cb) { db.run('INSERT OR IGNORE INTO player_stats (user_id) VALUES (?)', [userId], () => cb && cb()); }
+function ensureProfileRow(userId, cb) { db.run('INSERT OR IGNORE INTO player_profile (user_id) VALUES (?)', [userId], () => cb && cb()); }
 
-// ==================== PATENTES ====================
-const RANKS = [
-  { k: 's2', n: 'Soldado de Segunda Classe (S2)', q: 0 },
-  { k: 's1', n: 'Soldado de Primeira Classe (S1)', q: 25 },
-  { k: 'cabo', n: 'Cabo', q: 75 },
-  { k: '3s', n: 'Terceiro-Sargento', q: 150 },
-  { k: '2s', n: 'Segundo-Sargento', q: 300 },
-  { k: '1s', n: 'Primeiro-Sargento', q: 500 },
-  { k: 'sub', n: 'Suboficial', q: 750 },
-  { k: 'asp', n: 'Aspirante a Oficial', q: 1000 },
-  { k: '2t', n: 'Segundo-Tenente', q: 1400 },
-  { k: '1t', n: 'Primeiro-Tenente', q: 1900 },
-  { k: 'cap', n: 'Capitão', q: 2500 },
-  { k: 'maj', n: 'Major', q: 3200 },
-  { k: 'tc', n: 'Tenente-Coronel', q: 4000 },
-  { k: 'cel', n: 'Coronel', q: 5000 },
-  { k: 'brig', n: 'Brigadeiro', q: 6500 },
-  { k: 'mbrig', n: 'Major-Brigadeiro', q: 8000 },
-  { k: 'tbrig', n: 'Tenente-Brigadeiro', q: 10000 },
-];
-function rankForKills(kills) {
-  let cur = RANKS[0];
-  for (const r of RANKS) if ((kills || 0) >= r.q) cur = r;
-  return cur;
+// Loga no console do servidor a cada avaliação — assim dá pra confirmar
+// no terminal do node se isso está rodando de verdade e com quais
+// números, em vez de adivinhar às cegas.
+function evaluateMedals(userId) {
+  if (!userId) return;
+  db.get('SELECT * FROM player_stats WHERE user_id = ?', [userId], (err, s) => {
+    if (err || !s) { console.warn('[medalhas] sem stats pra user', userId, err); return; }
+    const rankIndex = RANKS.indexOf(rankFor(s.kills || 0));
+    db.all('SELECT medal_key, level FROM player_medals WHERE user_id = ?', [userId], (err2, rows) => {
+      if (err2) { console.warn('[medalhas] erro lendo medals de', userId, err2); return; }
+      const owned = {}; (rows || []).forEach(r => owned[r.medal_key] = r.level);
+      let anyNew = false;
+      MEDAL_DEFS.forEach(def => {
+        const val = def.m(s, rankIndex) || 0;
+        let lvl = 0;
+        if (val >= def.th[2]) lvl = 3; else if (val >= def.th[1]) lvl = 2; else if (val >= def.th[0]) lvl = 1;
+        if (lvl > (owned[def.k] || 0)) {
+          anyNew = true;
+          db.run(`INSERT INTO player_medals (user_id, medal_key, level) VALUES (?,?,?)
+                  ON CONFLICT(user_id, medal_key) DO UPDATE SET level=excluded.level, unlocked_at=CURRENT_TIMESTAMP`,
+            [userId, def.k, lvl],
+            (errIns) => {
+              if (errIns) console.error('[medalhas] FALHOU ao gravar', def.k, 'nível', lvl, 'pra', userId, errIns);
+              else console.log('[medalhas] user', userId, 'ganhou/atualizou', def.k, '-> nível', lvl, '(valor', val, ')');
+              checkLenda(userId);
+            });
+        }
+      });
+      if (!anyNew) console.log('[medalhas] user', userId, 'avaliado, nenhuma medalha nova (stats:', JSON.stringify(s), ')');
+    });
+  });
+}
+function checkLenda(userId) {
+  db.all(`SELECT medal_key FROM player_medals WHERE user_id=? AND level=3 AND medal_key NOT IN ('lenda_da_batalha_aerea')`, [userId], (err, rows) => {
+    if (!err && (rows || []).length >= MEDAL_DEFS.length) db.run(`INSERT OR IGNORE INTO player_medals (user_id, medal_key, level) VALUES (?,?,1)`, [userId, 'lenda_da_batalha_aerea']);
+  });
+}
+function unlockSecret(userId, key) {
+  if (!userId || !SECRET_KEYS.includes(key)) return;
+  db.run(`INSERT OR IGNORE INTO player_medals (user_id, medal_key, level) VALUES (?,?,1)`, [userId, key]);
 }
 
-// Chaves SECRETAS aceitas pelo report do cliente (Tiro Perfeito etc.)
-const SECRET_MEDALS = ['fenix', 'kamikaze', 'tiro-perfeito', 'cacador-relampago', 'dominio-aereo', 'lenda-da-batalha-aerea'];
+// ================================================================
+// Tudo abaixo (recordKill/recordDeath/recordBlimpKill/recordFirstBlood/
+// recordMatchResults) só deve ser chamado pelo server.js, e SÓ para
+// sala criada (`!room.isFreeRoom`) — nunca pra Sala Livre. Bots nem
+// existem no servidor (são só visuais do cliente no modo solo).
+// Ver server.js.
+// ================================================================
+const killTimes = new Map();
+function recordKill(userId, weaponType) {
+  if (!userId) return;
+  ensureStatsRow(userId, () => {
+    const isBomb = ['bomb', 'overdrive', 'light-trail-orb'].includes(weaponType);
+    const isMiss = ['missile', 'ability-missile', 'normal'].includes(weaponType);
+    db.run(`UPDATE player_stats SET kills=kills+1, bomb_kills=bomb_kills+?, missile_kills=missile_kills+?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?`, [isBomb ? 1 : 0, isMiss ? 1 : 0, userId], () => {
+      const now = Date.now();
+      const arr = (killTimes.get(userId) || []).filter(t => now - t < 20000);
+      arr.push(now); killTimes.set(userId, arr);
+      if (arr.length >= 3) unlockSecret(userId, 'cacador_relampago');
+      if (weaponType === 'blimp') unlockSecret(userId, 'kamikaze');
+      evaluateMedals(userId);
+    });
+  });
+}
+function recordDeath(userId, damageTaken, aliveSeconds) {
+  if (!userId) return;
+  ensureStatsRow(userId, () => {
+    const today = new Date().toDateString();
+    db.get('SELECT * FROM player_stats WHERE user_id=?', [userId], (err, s) => {
+      if (err || !s) return;
+      const dt = (s.deaths_today_date === today) ? (s.deaths_today || 0) + 1 : 1;
+      db.run(`UPDATE player_stats SET deaths=deaths+1, current_survival_streak=0, deaths_today=?, deaths_today_date=?,
+              best_damage_taken=MAX(best_damage_taken,?), best_alive_seconds=MAX(best_alive_seconds,?), updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
+        [dt, today, Math.round(damageTaken || 0), Math.round(aliveSeconds || 0), userId], () => evaluateMedals(userId));
+    });
+  });
+}
+function recordBlimpKill(userId) { if (!userId) return; ensureStatsRow(userId, () => db.run('UPDATE player_stats SET blimp_kills=blimp_kills+1 WHERE user_id=?', [userId], () => evaluateMedals(userId))); }
+function recordFirstBlood(userId) { if (!userId) return; ensureStatsRow(userId, () => db.run('UPDATE player_stats SET first_bloods=first_bloods+1 WHERE user_id=?', [userId], () => evaluateMedals(userId))); }
+function recordMatchResults(userId, o) {
+  if (!userId) return;
+  ensureStatsRow(userId, () => {
+    db.get('SELECT * FROM player_stats WHERE user_id=?', [userId], (err, s) => {
+      if (err || !s) return;
+      const streak = o.survived ? (s.current_survival_streak || 0) + 1 : 0;
+      db.run(`UPDATE player_stats SET matches_played=matches_played+1, playtime_seconds=playtime_seconds+?,
+        wins=wins+?, mvps=mvps+?, last_survivor=last_survivor+?,
+        current_survival_streak=?, best_survival_streak=MAX(best_survival_streak,?),
+        best_alive_seconds=MAX(best_alive_seconds,?), updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
+        [Math.round(o.playtimeSeconds || 0), o.win ? 1 : 0, o.mvp ? 1 : 0, o.lastSurvivor ? 1 : 0, streak, streak, Math.round(o.aliveSeconds || 0), userId], () => {
+          const today = new Date().toDateString();
+          if (o.win) {
+            if ((s.deaths_today_date === today ? (s.deaths_today || 0) : 0) >= 5) unlockSecret(userId, 'fenix');
+            if ((o.deathsInMatch || 0) === 0) unlockSecret(userId, 'dominio_aereo');
+          }
+          evaluateMedals(userId);
+        });
+    });
+  });
+}
+function recordLogin(userId) {
+  if (!userId) return;
+  ensureStatsRow(userId, () => {
+    const today = new Date().toDateString();
+    const yest = new Date(Date.now() - 86400000).toDateString();
+    db.get('SELECT last_login_date, login_days FROM player_stats WHERE user_id=?', [userId], (err, s) => {
+      if (err || !s || s.last_login_date === today) return;
+      const days = (s.last_login_date === yest) ? (s.login_days || 0) + 1 : 1;
+      db.run('UPDATE player_stats SET login_days=?, last_login_date=? WHERE user_id=?', [days, today, userId], () => evaluateMedals(userId));
+    });
+  });
+}
 
-function ensureProfileRow(userId, cb) { db.run('INSERT OR IGNORE INTO player_profile (user_id) VALUES (?)', [userId], (err) => cb && cb(err)); }
-function ensureStatsRow(userId, cb) { db.run('INSERT OR IGNORE INTO player_stats (user_id) VALUES (?)', [userId], (err) => cb && cb(err)); }
+function parseSelectedTitles(raw) { try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a.slice(0, 3) : []; } catch (e) { return []; } }
 
-// ==================== FOTO DE PERFIL ====================
+// Títulos públicos de UM jogador — usado por server.js pra mostrar o
+// título ao lado do nome no lobby. Só retorna medalhas que o jogador
+// REALMENTE possui (nível > 0).
+function getPublicTitles(userId, cb) {
+  if (!userId) return cb([]);
+  db.get('SELECT selected_titles FROM player_profile WHERE user_id=?', [userId], (err, row) => {
+    if (err || !row) return cb([]);
+    const sel = parseSelectedTitles(row.selected_titles);
+    if (!sel.length) return cb([]);
+    db.all('SELECT medal_key, level FROM player_medals WHERE user_id=? AND level>0', [userId], (err2, rows) => {
+      if (err2) return cb([]);
+      const owned = {}; (rows || []).forEach(r => { owned[r.medal_key] = r.level; });
+      cb(sel.map(k => owned[k] ? { key: k, level: owned[k] } : null).filter(Boolean));
+    });
+  });
+}
+
+// Mesma coisa, só que pra VÁRIOS jogadores de uma vez (friends.js).
+function getPublicTitlesBulk(userIds, cb) {
+  const ids = Array.from(new Set((userIds || []).filter(Boolean)));
+  if (!ids.length) return cb({});
+  const ph = ids.map(() => '?').join(',');
+  db.all(`SELECT user_id, selected_titles FROM player_profile WHERE user_id IN (${ph})`, ids, (err, profRows) => {
+    const selMap = {};
+    (profRows || []).forEach(r => { selMap[r.user_id] = parseSelectedTitles(r.selected_titles); });
+    db.all(`SELECT user_id, medal_key, level FROM player_medals WHERE user_id IN (${ph}) AND level>0`, ids, (err2, medRows) => {
+      const ownedMap = {};
+      (medRows || []).forEach(r => { (ownedMap[r.user_id] = ownedMap[r.user_id] || {})[r.medal_key] = r.level; });
+      const result = {};
+      ids.forEach(id => {
+        const sel = selMap[id] || [];
+        const owned = ownedMap[id] || {};
+        result[id] = sel.map(k => owned[k] ? { key: k, level: owned[k] } : null).filter(Boolean);
+      });
+      cb(result);
+    });
+  });
+}
+
+function getLeaderboard(cb) {
+  db.all(`SELECT u.nickname, s.*, p.photo_path, p.preferred_pilot, p.selected_titles
+          FROM player_stats s JOIN users u ON u.id=s.user_id
+          LEFT JOIN player_profile p ON p.user_id=s.user_id
+          WHERE s.kills>0 OR s.matches_played>0 ORDER BY s.kills DESC LIMIT 20`, [], (err, rows) => {
+    if (err) return cb(err, []);
+    rows = rows || [];
+    if (!rows.length) return cb(null, rows);
+    const ids = rows.map(r => r.user_id);
+    const ph = ids.map(() => '?').join(',');
+    db.all(`SELECT user_id, medal_key, level FROM player_medals WHERE user_id IN (${ph})`, ids, (err2, medals) => {
+      const byUser = {};
+      (medals || []).forEach(m => { (byUser[m.user_id] = byUser[m.user_id] || []).push(m); });
+      rows.forEach(r => {
+        const rk = rankFor(r.kills || 0);
+        r.rankKey = rk.k; r.rankName = rk.n; r.rankImg = rk.img;
+        r.photoUrl = r.photo_path ? `/uploads/avatars/${r.photo_path}` : (r.preferred_pilot ? `/img/piloto${r.preferred_pilot}.png` : null);
+        const owned = byUser[r.user_id] || [];
+        const sum = { b: 0, p: 0, o: 0 };
+        owned.forEach(m => { if (m.level === 1) sum.b++; else if (m.level === 2) sum.p++; else if (m.level === 3) sum.o++; });
+        r.medalSummary = sum;
+        const sel = parseSelectedTitles(r.selected_titles);
+        r.titles = sel.map(k => { const m = owned.find(x => x.medal_key === k && x.level > 0); return m ? { key: k, level: m.level } : null; }).filter(Boolean);
+      });
+      cb(null, rows);
+    });
+  });
+}
+function getTitles(cb) {
+  const Q = {
+    topKills: `SELECT u.nickname, s.kills AS value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.kills>0 ORDER BY s.kills DESC LIMIT 1`,
+    topBlimps: `SELECT u.nickname, s.blimp_kills AS value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.blimp_kills>0 ORDER BY s.blimp_kills DESC LIMIT 1`,
+    topPlaytime: `SELECT u.nickname, s.playtime_seconds AS value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.playtime_seconds>0 ORDER BY s.playtime_seconds DESC LIMIT 1`,
+    topWins: `SELECT u.nickname, s.wins AS value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.wins>0 ORDER BY s.wins DESC LIMIT 1`,
+    topMvps: `SELECT u.nickname, s.mvps AS value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.mvps>0 ORDER BY s.mvps DESC LIMIT 1`,
+  };
+  const res = {}; const keys = Object.keys(Q); let pend = keys.length;
+  keys.forEach(k => db.get(Q[k], [], (e, r) => { res[k] = r || null; if (--pend === 0) cb(null, res); }));
+}
+
 const AVATAR_DIR = path.join(__dirname, 'public', 'uploads', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, AVATAR_DIR),
-  filename: (req, file, cb) => {
-    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
-    cb(null, `user_${req.user.id}_${Date.now()}${ext}`);
-  },
-});
 const upload = multer({
-  storage,
+  storage: multer.diskStorage({ destination: (r, f, cb) => cb(null, AVATAR_DIR), filename: (r, f, cb) => cb(null, `user_${r.user.id}_${Date.now()}${(path.extname(f.originalname) || '.jpg').toLowerCase()}`) }),
   limits: { fileSize: 3 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!ok.includes(file.mimetype)) return cb(new Error('Formato de imagem não aceito (use JPG, PNG, WEBP ou GIF).'));
-    cb(null, true);
-  },
+  fileFilter: (r, f, cb) => cb(null, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(f.mimetype)),
 });
 
-// ==================== ROTAS ====================
 function mount(app) {
-
-  // ---- Perfil completo (config + foto + stats + patente + medalhas) ----
   app.get('/api/profile/me', authenticate, (req, res) => {
-    ensureProfileRow(req.user.id, () => {
-      ensureStatsRow(req.user.id, () => {
-        touchLoginDay(req.user.id, () => {
-          db.get('SELECT * FROM player_profile WHERE user_id = ?', [req.user.id], (err, profile) => {
-            if (err) return res.status(500).json({ error: 'Erro ao carregar perfil.' });
-            db.get('SELECT * FROM player_stats WHERE user_id = ?', [req.user.id], (err2, stats) => {
-              if (err2) return res.status(500).json({ error: 'Erro ao carregar estatísticas.' });
-              db.all('SELECT medal_key, level FROM player_medals WHERE user_id = ? AND level > 0', [req.user.id], (err3, medals) => {
-                if (err3) return res.status(500).json({ error: 'Erro ao carregar medalhas.' });
-                const kills = (stats && stats.kills) || 0;
-                const rk = rankForKills(kills);
-                const idx = RANKS.indexOf(rk);
-                const next = RANKS[idx + 1] || null;
-                let selectedTitles = [];
-                try { selectedTitles = JSON.parse((profile && profile.selected_titles) || '[]'); } catch (e) { selectedTitles = []; }
-                res.json({
-                  profile: {
-                    preferredPlane: profile.preferred_plane,
-                    soundEnabled: !!profile.sound_enabled,
-                    musicEnabled: !!profile.music_enabled,
-                    preferredPilot: profile.preferred_pilot || null,
-                    selectedTitles: Array.isArray(selectedTitles) ? selectedTitles : [],
-                    photoUrl: profile.photo_path ? `/uploads/avatars/${profile.photo_path}` : null,
-                  },
-                  stats: {
-                    matches_played: stats.matches_played || 0, kills: stats.kills || 0,
-                    deaths: stats.deaths || 0, blimp_kills: stats.blimp_kills || 0,
-                    playtime_seconds: stats.playtime_seconds || 0, wins: stats.wins || 0,
-                    mvps: stats.mvps || 0, bomb_kills: stats.bomb_kills || 0,
-                    missile_kills: stats.missile_kills || 0, login_days: stats.login_days || 0,
-                  },
-                  rank: { index: idx, key: rk.k, name: rk.n, current: kills, next: next ? { name: next.n, at: next.q } : null },
-                  medals: medals || [],
-                });
-              });
+    recordLogin(req.user.id);
+    ensureProfileRow(req.user.id, () => ensureStatsRow(req.user.id, () => {
+      db.get('SELECT * FROM player_profile WHERE user_id=?', [req.user.id], (e1, profile) => {
+        db.get('SELECT * FROM player_stats WHERE user_id=?', [req.user.id], (e2, stats) => {
+          if (e1 || e2) return res.status(500).json({ error: 'Erro ao carregar perfil.' });
+          const rank = rankFor(stats.kills || 0);
+          const idx = RANKS.indexOf(rank);
+          const next = RANKS[idx + 1] || null;
+          db.all('SELECT medal_key, level FROM player_medals WHERE user_id=?', [req.user.id], (e3, medals) => {
+            res.json({
+              profile: {
+                preferredPlane: profile.preferred_plane, soundEnabled: !!profile.sound_enabled, musicEnabled: !!profile.music_enabled,
+                photoUrl: profile.photo_path ? `/uploads/avatars/${profile.photo_path}` : null,
+                preferredPilot: profile.preferred_pilot || null, selectedTitles: parseSelectedTitles(profile.selected_titles),
+              },
+              stats, rank: { key: rank.k, name: rank.n, img: rank.img, index: idx, next: next ? { key: next.k, name: next.n, img: next.img, at: next.q } : null, current: stats.kills || 0 },
+              medals: medals || [],
             });
           });
         });
       });
-    });
+    }));
   });
 
-  // ---- Salvar configurações (inclui TÍTULOS) — SEMPRE responde ----
   app.post('/api/profile/settings', authenticate, (req, res) => {
-    const { preferredPlane, soundEnabled, musicEnabled, preferredPilot, selectedTitles } = req.body || {};
+    const { preferredPlane, soundEnabled, musicEnabled, preferredPilot } = req.body || {};
+    // CORREÇÃO: `selectedTitles` NÃO pode vir do mesmo destructuring
+    // acima (que é `const`) porque, logo abaixo, o código precisa
+    // REATRIBUIR essa variável (filtrar só os títulos que o jogador
+    // realmente possui). Reatribuir uma const lançava
+    // "TypeError: Assignment to constant variable" — e como isso
+    // acontecia ANTES de res.json(...), a rota inteira nunca respondia
+    // (por isso "salvar" não fazia nada e a requisição ficava pendurada
+    // até o túnel cancelar). Agora é `let`, declarada à parte.
+    let selectedTitles = (req.body || {}).selectedTitles;
     ensureProfileRow(req.user.id, () => {
-      const apply = (titlesJson) => {
-        db.run(
-          `UPDATE player_profile SET
-            preferred_plane = COALESCE(?, preferred_plane),
-            sound_enabled = COALESCE(?, sound_enabled),
-            music_enabled = COALESCE(?, music_enabled),
-            preferred_pilot = COALESCE(?, preferred_pilot),
-            selected_titles = COALESCE(?, selected_titles),
-            updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = ?`,
-          [
-            preferredPlane || null,
-            soundEnabled === undefined ? null : (soundEnabled ? 1 : 0),
-            musicEnabled === undefined ? null : (musicEnabled ? 1 : 0),
-            (preferredPilot === undefined || preferredPilot === null) ? null : Math.min(16, Math.max(1, parseInt(preferredPilot, 10) || 1)),
-            titlesJson,
-            req.user.id,
-          ],
-          (err) => {
-            if (err) return res.status(500).json({ error: 'Erro ao salvar configurações.' });
-            res.json({ ok: true });
-          }
-        );
-      };
+      const apply = () => db.run(
+        `UPDATE player_profile SET preferred_plane=COALESCE(?,preferred_plane), sound_enabled=COALESCE(?,sound_enabled), music_enabled=COALESCE(?,music_enabled),
+         preferred_pilot=COALESCE(?,preferred_pilot), selected_titles=COALESCE(?,selected_titles), updated_at=CURRENT_TIMESTAMP WHERE user_id=?`,
+        [preferredPlane || null, soundEnabled === undefined ? null : (soundEnabled ? 1 : 0), musicEnabled === undefined ? null : (musicEnabled ? 1 : 0),
+         preferredPilot === undefined ? null : Math.min(16, Math.max(1, parseInt(preferredPilot, 10) || 1)),
+         selectedTitles === undefined ? null : JSON.stringify(selectedTitles), req.user.id],
+        (err) => (err ? res.status(500).json({ error: 'Erro.' }) : res.json({ ok: true }))
+      );
+      // valida títulos escolhidos: só medalhas que o jogador realmente possui
       if (selectedTitles !== undefined) {
-        // Normaliza pra hífen (padrão do banco/imagens) e limita a 3
-        const list = (Array.isArray(selectedTitles) ? selectedTitles : [])
-          .filter(k => typeof k === 'string')
-          .map(k => k.replace(/_/g, '-'))
-          .slice(0, 3);
-        db.all('SELECT medal_key FROM player_medals WHERE user_id = ? AND level > 0', [req.user.id], (err, rows) => {
-          if (err) return apply(JSON.stringify(list)); // falhou checagem? salva assim mesmo
-          const owned = new Set((rows || []).map(r => r.medal_key));
-          apply(JSON.stringify(list.filter(k => owned.has(k))));
+        const wanted = Array.isArray(selectedTitles) ? selectedTitles.filter(k => ALL_MEDAL_KEYS.includes(k)).slice(0, 3) : [];
+        db.all('SELECT medal_key FROM player_medals WHERE user_id=? AND level>0', [req.user.id], (e, rows) => {
+          const owned = (rows || []).map(r => r.medal_key);
+          selectedTitles = wanted.filter(k => owned.includes(k));
+          apply();
         });
-      } else {
-        apply(null);
-      }
+      } else apply();
     });
   });
 
-  // ---- Upload de foto ----
   app.post('/api/profile/photo', authenticate, (req, res) => {
     upload.single('photo')(req, res, (err) => {
-      if (err) return res.status(400).json({ error: err.message });
-      if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
-      ensureProfileRow(req.user.id, () => {
-        db.get('SELECT photo_path FROM player_profile WHERE user_id = ?', [req.user.id], (err2, row) => {
-          const oldFileName = row && row.photo_path;
-          db.run('UPDATE player_profile SET photo_path = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [req.file.filename, req.user.id], (err3) => {
-            if (err3) return res.status(500).json({ error: 'Erro ao salvar a foto.' });
-            if (oldFileName && oldFileName !== req.file.filename) fs.unlink(path.join(AVATAR_DIR, oldFileName), () => {});
-            res.json({ ok: true, photoUrl: `/uploads/avatars/${req.file.filename}` });
-          });
+      if (err || !req.file) return res.status(400).json({ error: (err && err.message) || 'Nenhuma imagem.' });
+      db.get('SELECT photo_path FROM player_profile WHERE user_id=?', [req.user.id], (e, row) => {
+        const old = row && row.photo_path;
+        db.run('UPDATE player_profile SET photo_path=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?', [req.file.filename, req.user.id], () => {
+          if (old && old !== req.file.filename) fs.unlink(path.join(AVATAR_DIR, old), () => {});
+          res.json({ ok: true, photoUrl: `/uploads/avatars/${req.file.filename}` });
         });
       });
     });
   });
 
-  // ---- Ranking público (site + Central do Piloto) ----
+  // NOVO — recalcula suas medalhas AGORA a partir das estatísticas já
+  // salvas (player_stats), sem esperar o próximo abate/dirigível/etc.
+  // Resolve o caso de estatística já ter passado do valor exigido mas a
+  // medalha nunca ter sido gravada.
+  app.post('/api/profile/recompute-medals', authenticate, (req, res) => {
+    evaluateMedals(req.user.id);
+    setTimeout(() => {
+      db.all('SELECT medal_key, level FROM player_medals WHERE user_id=?', [req.user.id], (err, rows) => {
+        res.json({ ok: true, medals: rows || [] });
+      });
+    }, 400); // pequena espera pra dar tempo das gravações assíncronas terminarem
+  });
+
   app.get('/api/ranking', (req, res) => {
-    getLeaderboard((err, leaderboard) => {
-      if (err) return res.status(500).json({ error: 'Erro ao carregar ranking.' });
-      getTitles((err2, titles) => {
-        if (err2) return res.status(500).json({ error: 'Erro ao carregar títulos.' });
-        res.json({ leaderboard, titles });
-      });
-    });
+    getLeaderboard((e1, leaderboard) => getTitles((e2, titles) => {
+      if (e1 || e2) return res.status(500).json({ error: 'Erro ao carregar ranking.' });
+      res.json({ leaderboard, titles });
+    }));
   });
 }
-
-// ==================== ESTATÍSTICAS ====================
-function _bump(userId, sql, params, thenEvaluate) {
-  ensureStatsRow(userId, () => {
-    db.run(sql, params, () => { if (thenEvaluate !== false) evaluateMedals(userId); });
-  });
-}
-function recordKill(userId, weaponType) {
-  if (!userId) return;
-  const extraBomb = (weaponType === 'bomb' || weaponType === 'overdrive') ? ', bomb_kills = bomb_kills + 1' : '';
-  const extraMissile = (weaponType === 'missile') ? ', missile_kills = missile_kills + 1' : '';
-  _bump(userId, `UPDATE player_stats SET kills = kills + 1${extraBomb}${extraMissile}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`, [userId]);
-}
-function recordDeath(userId, dmgTaken, aliveSec) {
-  if (!userId) return;
-  ensureStatsRow(userId, () => {
-    db.run(
-      `UPDATE player_stats SET deaths = deaths + 1,
-        damage_taken = damage_taken + ?,
-        best_alive_seconds = MAX(best_alive_seconds, ?),
-        updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
-      [Math.max(0, Math.round(dmgTaken || 0)), Math.max(0, Math.round(aliveSec || 0)), userId],
-      () => evaluateMedals(userId)
-    );
-  });
-}
-function recordBlimpKill(userId) { if (userId) _bump(userId, 'UPDATE player_stats SET blimp_kills = blimp_kills + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userId]); }
-function recordMatchPlayed(userId, playtimeSeconds) { if (userId) _bump(userId, 'UPDATE player_stats SET matches_played = matches_played + 1, playtime_seconds = playtime_seconds + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [Math.max(0, Math.round(playtimeSeconds || 0))]); }
-function recordWin(userId) { if (userId) _bump(userId, 'UPDATE player_stats SET wins = wins + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userId]); }
-function recordMvp(userId) { if (userId) _bump(userId, 'UPDATE player_stats SET mvps = mvps + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userId]); }
-function recordBombKill(userId) { if (userId) _bump(userId, 'UPDATE player_stats SET bomb_kills = bomb_kills + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userId]); }
-function recordMissileKill(userId) { if (userId) _bump(userId, 'UPDATE player_stats SET missile_kills = missile_kills + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userId]); }
-function recordLoginDay(userId) { if (userId) touchLoginDay(userId); }
-function recordFirstBlood(userId) { if (userId) _bump(userId, 'UPDATE player_stats SET first_bloods = first_bloods + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userId]); }
-
-// Chamado pelo server.js no fim de partida (endMatch)
-function recordMatchResults(userId, r) {
-  if (!userId || !r) return;
-  ensureStatsRow(userId, () => {
-    db.run(
-      `UPDATE player_stats SET
-        matches_played = matches_played + 1,
-        playtime_seconds = playtime_seconds + ?,
-        wins = wins + ?,
-        mvps = mvps + ?,
-        last_survivals = last_survivals + ?,
-        best_alive_seconds = MAX(best_alive_seconds, ?),
-        updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
-      [
-        Math.max(0, Math.round(r.playtimeSeconds || 0)),
-        r.win ? 1 : 0,
-        r.mvp ? 1 : 0,
-        r.lastSurvivor ? 1 : 0,
-        Math.max(0, Math.round(r.aliveSeconds || 0)),
-        userId,
-      ],
-      () => evaluateMedals(userId)
-    );
-  });
-}
-
-// Medalha secreta reportada pelo cliente (ex: Tiro Perfeito)
-function unlockSecret(userId, key) {
-  if (!userId || !key) return;
-  const k = String(key).replace(/_/g, '-');
-  if (!SECRET_MEDALS.includes(k)) return;
-  db.get('SELECT level FROM player_medals WHERE user_id = ? AND medal_key = ?', [userId, k], (err, row) => {
-    const already = row && row.level > 0;
-    setMedalLevel(userId, k, 1);
-    if (!already) _notifyUnlocked(userId, [{ key: k, level: 1 }]);
-  });
-}
-
-// Dia de login (Piloto Dedicado) — 1x por dia, checado no /api/profile/me
-function touchLoginDay(userId, cb) {
-  const today = new Date().toISOString().slice(0, 10);
-  db.get('SELECT last_login_date FROM player_stats WHERE user_id = ?', [userId], (err, row) => {
-    if (err || (row && row.last_login_date === today)) return cb && cb();
-    db.run('UPDATE player_stats SET login_days = login_days + 1, last_login_date = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [today, userId], () => {
-      evaluateMedals(userId);
-      cb && cb();
-    });
-  });
-}
-
-// ==================== MEDALHAS ====================
-function setMedalLevel(userId, key, level) {
-  if (!userId || !key || !(level > 0)) return;
-  const k = String(key).replace(/_/g, '-');
-  db.run(
-    `INSERT INTO player_medals (user_id, medal_key, level) VALUES (?, ?, ?)
-     ON CONFLICT(user_id, medal_key) DO UPDATE SET level = MAX(level, excluded.level), updated_at = CURRENT_TIMESTAMP`,
-    [userId, k, level]
-  );
-}
-function _lvlFor(value, tiers) {
-  let lv = 0;
-  tiers.forEach((t, i) => { if (value >= t) lv = i + 1; });
-  return lv;
-}
-// PEDIDO: manda uma notificação em tempo real pro dono da conta quando ele
-// destrava (ou sobe de nível) um título — SE ele estiver com um socket ativo
-// agora (accountSocketMap, mantido pelo friends.js). Se ele não estiver
-// online (ex: acabou de acontecer via job de fim de partida com o socket já
-// desconectado), simplesmente não manda nada — na próxima vez que abrir a
-// Central do Piloto o título já vai estar lá, só não veio o "toast" na hora.
-function _notifyUnlocked(userId, unlocked) {
-  if (!unlocked.length) return;
-  const socketId = friendsModule.accountSocketMap.get(userId);
-  if (socketId && global.__batalhaIo) {
-    global.__batalhaIo.to(socketId).emit('titles-unlocked', {
-      titles: unlocked.map(u => ({ key: u.key, level: u.level, name: MEDAL_LABELS[u.key] || u.key })),
-    });
-  }
-}
-// Nomes usados só pro texto da notificação (o cliente já tem os nomes
-// completos em social-client.js/MEDAL_NAMES — isso aqui é só o fallback do
-// servidor, texto simples sem acento problemático de encoding).
-const MEDAL_LABELS = {
-  'veterano-dos-ceus': 'Veterano dos Ceus', 'as-dos-ceus': 'As dos Ceus',
-  'fantasma-dos-ceus': 'Fantasma dos Ceus', 'abatedor-de-dirigiveis': 'Abatedor de Dirigiveis',
-  'bombardeiro-de-elite': 'Bombardeiro de Elite', 'mestre-dos-misseis': 'Mestre dos Misseis',
-  'heroi-da-esquadrilha': 'Heroi da Esquadrilha', 'conquistador-dos-ceus': 'Conquistador dos Ceus',
-  'piloto-veterano': 'Piloto Veterano', 'piloto-dedicado': 'Piloto Dedicado',
-  'orgulho-da-esquadrilha': 'Orgulho da Esquadrilha', 'blindagem-viva': 'Blindagem Viva',
-  'implacavel': 'Implacavel', 'primeiro-ataque': 'Primeiro Ataque', 'ultimo-no-ceu': 'Ultimo no Ceu',
-  'fenix': 'Fenix', 'kamikaze': 'Kamikaze', 'tiro-perfeito': 'Tiro Perfeito',
-  'cacador-relampago': 'Cacador Relampago', 'dominio-aereo': 'Dominio Aereo',
-  'lenda-da-batalha-aerea': 'Lenda da Batalha Aerea',
-};
-function evaluateMedals(userId) {
-  if (!userId) return;
-  db.get('SELECT * FROM player_stats WHERE user_id = ?', [userId], (err, s) => {
-    if (err || !s) return;
-    // PEDIDO: lê o nível ATUAL de cada medalha antes de recalcular, pra
-    // saber exatamente quais subiram de nível nesta chamada (é isso que
-    // dispara a notificação — nunca notifica de novo um título que o
-    // jogador já tinha).
-    db.all('SELECT medal_key, level FROM player_medals WHERE user_id = ?', [userId], (err2, existing) => {
-      const before = {};
-      (existing || []).forEach(r => { before[r.medal_key] = r.level; });
-      const kd = (s.deaths > 0) ? (s.kills / s.deaths) : (s.kills > 0 ? 99 : 0);
-      const targets = [
-        ['veterano-dos-ceus', _lvlFor((s.playtime_seconds || 0) / 3600, [5, 20, 75])],
-        ['as-dos-ceus', _lvlFor(s.kills || 0, [50, 250, 1000])],
-        ['fantasma-dos-ceus', _lvlFor(kd, [1.5, 2.5, 4.0])],
-        ['abatedor-de-dirigiveis', _lvlFor(s.blimp_kills || 0, [10, 50, 250])],
-        ['bombardeiro-de-elite', _lvlFor(s.bomb_kills || 0, [25, 100, 400])],
-        ['mestre-dos-misseis', _lvlFor(s.missile_kills || 0, [25, 100, 400])],
-        ['heroi-da-esquadrilha', _lvlFor(s.mvps || 0, [10, 50, 200])],
-        ['conquistador-dos-ceus', _lvlFor(s.wins || 0, [25, 100, 500])],
-        ['piloto-veterano', _lvlFor(s.matches_played || 0, [50, 250, 1000])],
-        ['piloto-dedicado', _lvlFor(s.login_days || 0, [7, 30, 180])],
-        ['orgulho-da-esquadrilha', _lvlFor(s.kills || 0, [300, 2500, 10000])],
-        ['blindagem-viva', _lvlFor(s.damage_taken || 0, [500, 2000, 10000])],
-        ['implacavel', _lvlFor(s.best_alive_seconds || 0, [300, 600, 1200])],
-        ['primeiro-ataque', _lvlFor(s.first_bloods || 0, [10, 50, 250])],
-        ['ultimo-no-ceu', _lvlFor(s.last_survivals || 0, [10, 50, 250])],
-      ];
-      const unlocked = [];
-      targets.forEach(([key, level]) => {
-        if (level > 0 && level > (before[key] || 0)) unlocked.push({ key, level });
-        setMedalLevel(userId, key, level);
-      });
-      _notifyUnlocked(userId, unlocked);
-    });
-  });
-}
-
-// ==================== RANKING / TÍTULOS ====================
-function getLeaderboard(cb) {
-  db.all(
-    `SELECT u.nickname, s.user_id, s.kills, s.deaths, s.blimp_kills, s.matches_played,
-            s.playtime_seconds, s.wins, s.mvps, s.bomb_kills, s.missile_kills,
-            p.photo_path, p.selected_titles
-     FROM player_stats s
-     JOIN users u ON u.id = s.user_id
-     LEFT JOIN player_profile p ON p.user_id = u.id
-     ORDER BY s.kills DESC LIMIT 20`,
-    [],
-    (err, rows) => {
-      if (err) return cb(err, []);
-      rows = rows || [];
-      if (!rows.length) return cb(null, []);
-      const out = [];
-      let pending = rows.length;
-      rows.forEach(r => {
-        db.all('SELECT medal_key, level FROM player_medals WHERE user_id = ? AND level > 0', [r.user_id], (e2, meds) => {
-          const medals = meds || [];
-          const lvl = {};
-          medals.forEach(m => { lvl[m.medal_key] = m.level; });
-          let sel = [];
-          try { sel = JSON.parse(r.selected_titles || '[]'); } catch (e) { sel = []; }
-          out.push({
-            nickname: r.nickname,
-            kills: r.kills || 0, deaths: r.deaths || 0, blimp_kills: r.blimp_kills || 0,
-            matches_played: r.matches_played || 0, playtime_seconds: r.playtime_seconds || 0,
-            wins: r.wins || 0, mvps: r.mvps || 0, bomb_kills: r.bomb_kills || 0, missile_kills: r.missile_kills || 0,
-            photoUrl: r.photo_path ? `/uploads/avatars/${r.photo_path}` : null,
-            rankKey: rankForKills(r.kills || 0).k,
-            // Só entrega títulos que o jogador REALMENTE possui (com o nível real)
-            titles: (Array.isArray(sel) ? sel : [])
-              .map(k => String(k).replace(/_/g, '-'))
-              .filter(k => lvl[k])
-              .slice(0, 3)
-              .map(k => ({ key: k, level: lvl[k] })),
-            medalSummary: {
-              b: medals.filter(m => m.level >= 1).length,
-              p: medals.filter(m => m.level >= 2).length,
-              o: medals.filter(m => m.level >= 3).length,
-            },
-          });
-          if (--pending === 0) { out.sort((a, b) => b.kills - a.kills); cb(null, out); }
-        });
-      });
-    }
-  );
-}
-function getTitles(cb) {
-  const queries = {
-    topKills: `SELECT u.nickname, s.kills as value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.kills > 0 ORDER BY s.kills DESC LIMIT 1`,
-    topBlimps: `SELECT u.nickname, s.blimp_kills as value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.blimp_kills > 0 ORDER BY s.blimp_kills DESC LIMIT 1`,
-    topPlaytime: `SELECT u.nickname, s.playtime_seconds as value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.playtime_seconds > 0 ORDER BY s.playtime_seconds DESC LIMIT 1`,
-    topWins: `SELECT u.nickname, s.wins as value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.wins > 0 ORDER BY s.wins DESC LIMIT 1`,
-    topMvps: `SELECT u.nickname, s.mvps as value FROM player_stats s JOIN users u ON u.id=s.user_id WHERE s.mvps > 0 ORDER BY s.mvps DESC LIMIT 1`,
-  };
-  const result = {};
-  const keys = Object.keys(queries);
-  let pending = keys.length;
-  keys.forEach((key) => {
-    db.get(queries[key], [], (err, row) => {
-      result[key] = row || null;
-      if (--pending === 0) cb(null, result);
-    });
-  });
-}
-
-// ==================== "CARTEIRINHA" PRA SALAS (rooms) ====================
-// PEDIDO: pra amigos/oponentes verem a patente/títulos de cada jogador
-// dentro da sala (lobby, placar) — não só no ranking do site. Devolve
-// sempre um objeto válido (mesmo pra quem não tem conta = sem login),
-// pronto pra ir direto no payload da sala.
-function getPlayerBadge(userId, cb) {
-  if (!userId) { cb({ rankKey: null, titles: [], photoUrl: null }); return; }
-  db.get('SELECT kills FROM player_stats WHERE user_id = ?', [userId], (err, s) => {
-    const rk = rankForKills((s && s.kills) || 0);
-    db.get('SELECT selected_titles, photo_path FROM player_profile WHERE user_id = ?', [userId], (err2, profile) => {
-      let sel = [];
-      try { sel = JSON.parse((profile && profile.selected_titles) || '[]'); } catch (e) { sel = []; }
-      if (!Array.isArray(sel) || !sel.length) { cb({ rankKey: rk.k, titles: [], photoUrl: profile && profile.photo_path ? `/uploads/avatars/${profile.photo_path}` : null }); return; }
-      db.all('SELECT medal_key, level FROM player_medals WHERE user_id = ? AND level > 0', [userId], (err3, medals) => {
-        const lvl = {};
-        (medals || []).forEach(m => { lvl[m.medal_key] = m.level; });
-        const titles = sel.map(k => String(k).replace(/_/g, '-')).filter(k => lvl[k]).slice(0, 3).map(k => ({ key: k, level: lvl[k] }));
-        cb({ rankKey: rk.k, titles, photoUrl: profile && profile.photo_path ? `/uploads/avatars/${profile.photo_path}` : null });
-      });
-    });
-  });
-}
-
 module.exports = {
-  mount,
-  recordKill, recordDeath, recordBlimpKill, recordMatchPlayed,
-  recordMatchResults, recordWin, recordMvp, recordBombKill, recordMissileKill,
-  recordLoginDay, recordFirstBlood, unlockSecret,
-  setMedalLevel, evaluateMedals,
-  getLeaderboard, getTitles, getPlayerBadge,
+  mount, recordKill, recordDeath, recordBlimpKill, recordFirstBlood, recordMatchResults, recordLogin,
+  unlockSecret, evaluateMedals, getLeaderboard, getTitles, getPublicTitles, getPublicTitlesBulk,
+  RANKS, rankFor,
 };
